@@ -7,9 +7,6 @@ struct Up: ParsableCommand {
         abstract: "Clone missing repos and pull latest changes."
     )
 
-    @Flag(name: .long, help: "Show what would happen without making changes.")
-    var dryRun = false
-
     func run() throws {
         let path = Config.manifestPath
         guard FS.exists(path) else {
@@ -28,10 +25,8 @@ struct Up: ParsableCommand {
 
         Config.printBanner(manifestPath: path, mountDir: manifest.mount)
 
-        Sync.syncDeclaredRepos(manifest.repos, mount: manifest.mount, dryRun: dryRun)
+        Sync.syncDeclaredRepos(manifest.repos, mount: manifest.mount)
 
-        if !dryRun {
-            State.touchLastRun()
-        }
+        State.touchLastRun()
     }
 }

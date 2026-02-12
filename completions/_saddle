@@ -1,0 +1,55 @@
+#compdef saddle
+
+_saddle() {
+    local context state state_descr line
+    local -A opt_args
+
+    _arguments -C \
+        '(-h --help)'{-h,--help}'[Show help]' \
+        '(-v --version)'{-v,--version}'[Show version]' \
+        '1:command:->command' \
+        '*::arg:->args'
+
+    case "$state" in
+    command)
+        local -a commands=(
+            'status:Show status of all repos'
+            'up:Clone missing repos, pull updates, and run hooks'
+            'equip:Clone, install, and add a repo to the manifest'
+            'unequip:Uninstall and remove a repo from the manifest'
+            'adopt:Add all stray repos with an origin to the manifest'
+            'info:Show saddle configuration and status'
+        )
+        _describe 'command' commands
+        ;;
+    args)
+        case "$words[1]" in
+        status)
+            _arguments \
+                '--show-legend[Display the status legend]' \
+                '--all[All repos, including archived]' \
+                '--local[Cloned to disk (equipped + stray)]' \
+                '--equipped[In the manifest]' \
+                '--unequipped[Not in the manifest]' \
+                '--stray[Cloned locally but not in the manifest]' \
+                '--public[Public visibility on remote]' \
+                '--private[Private visibility on remote]' \
+                '--clean[No uncommitted changes]' \
+                '--dirty[Has uncommitted changes]' \
+                '--hooked[Has a post-sync hook]' \
+                '--unhooked[No post-sync hook]' \
+                '--archived[Archived on remote]' \
+                '--active[Not archived]' \
+                '--starred[Starred on remote]' \
+                '--unstarred[Not starred]' \
+                '--owner[Filter by repository owner]:<owner>:'
+            ;;
+        equip|unequip)
+            _arguments ':repo:'
+            ;;
+        esac
+        ;;
+    esac
+}
+
+_saddle "$@"

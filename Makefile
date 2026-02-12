@@ -24,7 +24,7 @@ build:
 # ============================================================
 # Install
 # ============================================================
-install:
+install: completions
 	@if [ ! -f .build/release/$(BINARY) ]; then \
 		echo "$(YELLOW)No binary found.$(RESET) Run 'make build' first."; \
 		exit 1; \
@@ -80,10 +80,15 @@ completions:
 		exit 1; \
 	fi
 	@mkdir -p completions
-	@.build/release/$(BINARY) --generate-completion-script zsh > completions/_$(BINARY)
-	@.build/release/$(BINARY) --generate-completion-script bash > completions/$(BINARY).bash
-	@.build/release/$(BINARY) --generate-completion-script fish > completions/$(BINARY).fish
-	@echo "$(GREEN)Completions generated in completions/$(RESET)"
+	@.build/release/$(BINARY) completions > completions/_$(BINARY)
+	@FPATH_DIR=$$(zsh -ic 'print $$fpath[1]'); \
+	if [ -d "$$FPATH_DIR" ]; then \
+		cp completions/_$(BINARY) "$$FPATH_DIR/_$(BINARY)"; \
+		echo "$(GREEN)Completions installed to $$FPATH_DIR$(RESET)"; \
+	else \
+		echo "$(GREEN)Completions generated in completions/$(RESET)"; \
+		echo "$(YELLOW)Could not detect fpath directory — copy completions/_$(BINARY) manually$(RESET)"; \
+	fi
 
 # ============================================================
 # Help
@@ -93,12 +98,12 @@ help:
 	@echo "$(BOLD)Usage:$(RESET) make $(CYAN)[target]$(RESET)"
 	@echo ""
 	@echo "$(YELLOW)Targets:$(RESET)"
-	@echo "  $(CYAN)build$(RESET)     $(GRAY)-$(RESET) $(GREEN)Build the release binary$(RESET)"
-	@echo "  $(CYAN)install$(RESET)   $(GRAY)-$(RESET) $(GREEN)Copy binary to /usr/local/bin$(RESET)"
-	@echo "  $(CYAN)rebuild$(RESET)   $(GRAY)-$(RESET) $(GREEN)Clean, build, and install$(RESET)"
-	@echo "  $(CYAN)uninstall$(RESET) $(GRAY)-$(RESET) $(GREEN)Remove binary from /usr/local/bin$(RESET)"
-	@echo "  $(CYAN)test$(RESET)      $(GRAY)-$(RESET) $(GREEN)Run tests$(RESET)"
-	@echo "  $(CYAN)completions$(RESET) $(GRAY)-$(RESET) $(GREEN)Generate shell completions (zsh, bash, fish)$(RESET)"
-	@echo "  $(CYAN)clean$(RESET)     $(GRAY)-$(RESET) $(GREEN)Remove build artifacts$(RESET)"
-	@echo "  $(CYAN)help$(RESET)      $(GRAY)-$(RESET) $(GREEN)Show this help message (default)$(RESET)"
+	@echo "  $(CYAN)build$(RESET)        $(GRAY)-$(RESET) $(GREEN)Build the release binary$(RESET)"
+	@echo "  $(CYAN)install$(RESET)      $(GRAY)-$(RESET) $(GREEN)Copy binary to /usr/local/bin$(RESET)"
+	@echo "  $(CYAN)rebuild$(RESET)      $(GRAY)-$(RESET) $(GREEN)Clean, build, and install$(RESET)"
+	@echo "  $(CYAN)uninstall$(RESET)    $(GRAY)-$(RESET) $(GREEN)Remove binary from /usr/local/bin$(RESET)"
+	@echo "  $(CYAN)test$(RESET)         $(GRAY)-$(RESET) $(GREEN)Run tests$(RESET)"
+	@echo "  $(CYAN)completions$(RESET)  $(GRAY)-$(RESET) $(GREEN)Generate zsh completions$(RESET)"
+	@echo "  $(CYAN)clean$(RESET)        $(GRAY)-$(RESET) $(GREEN)Remove build artifacts$(RESET)"
+	@echo "  $(CYAN)help$(RESET)         $(GRAY)-$(RESET) $(GREEN)Show this help message (default)$(RESET)"
 	@echo ""

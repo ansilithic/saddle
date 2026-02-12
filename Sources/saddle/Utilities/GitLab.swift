@@ -55,7 +55,7 @@ struct GitLab: ForgeProvider, Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 10
 
-        var result: Data?
+        nonisolated(unsafe) var result: Data?
         let sem = DispatchSemaphore(value: 0)
         URLSession.shared.dataTask(with: request) { data, response, _ in
             if let http = response as? HTTPURLResponse, http.statusCode == 200 {

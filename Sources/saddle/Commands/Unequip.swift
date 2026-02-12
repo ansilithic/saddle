@@ -4,7 +4,7 @@ import Foundation
 
 struct Unequip: ParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Remove a repo from the manifest."
+        abstract: "Uninstall and remove a repo from the manifest."
     )
 
     @Argument(help: "Normalized URL (host/owner/repo). Omit to detect from current directory.")
@@ -18,8 +18,8 @@ struct Unequip: ParsableCommand {
             normalized = try detectFromCurrentDirectory()
         }
 
-        let path = Config.manifestPath
-        guard FS.exists(path), var manifest = Parser.parseOrNil(at: path) else {
+        let manifestPath = Config.manifestPath
+        guard FS.exists(manifestPath), var manifest = Parser.parseOrNil(at: manifestPath) else {
             Output.error("No manifest found at \(FS.shortenPath(Config.manifestPath))")
             throw ExitCode.failure
         }
@@ -29,10 +29,40 @@ struct Unequip: ParsableCommand {
             throw ExitCode.failure
         }
 
-        manifest.repos.remove(at: index)
+        // Find repo on disk
+        let repoPath = findRepoOnDisk(url: normalized, in: manifest.mount)
 
-        try Parser.save(manifest, to: path)
+        // Run uninstall hook
+        if let repoPath, let resolution = HookResolver.resolve(for: normalized, lifecycle: .uninstall) {
+            let spinner = BrailleSpinner(label: "Running uninstall hook\u{2026}")
+            spinner.start()
+            let result = HookResolver.execute(resolution, at: repoPath)
+            spinner.stop()
+
+            if case .ran(_, let exitCode, let logPath) = result, exitCode != 0 {
+                Output.warning("Uninstall hook failed (exit \(exitCode))")
+                print(styled("  Log: \(FS.shortenPath(logPath))", .dim))
+            } else {
+                print(styled("Uninstalled", .yellow) + " " + resolution.hookName)
+            }
+        }
+
+        // Remove from manifest
+        manifest.repos.remove(at: index)
+        try Parser.save(manifest, to: manifestPath)
         print(styled("Unequipped", .yellow) + " " + normalized)
+    }
+
+    private func findRepoOnDisk(url: String, in devDir: String) -> String? {
+        let normalized = URLHelpers.normalize(url)
+        let discoveredPaths = FS.findRepos(in: devDir)
+        for repoPath in discoveredPaths {
+            let (output, rc) = Exec.git("remote", "get-url", "origin", at: repoPath)
+            if rc == 0, URLHelpers.normalize(output) == normalized {
+                return repoPath
+            }
+        }
+        return nil
     }
 
     private func detectFromCurrentDirectory() throws -> String {

@@ -6,6 +6,8 @@ enum GitHelpers {
         let remoteURL: String?
         let branch: String
         let status: String
+        let ahead: Int
+        let behind: Int
         let lastCommitTime: String
     }
 
@@ -60,6 +62,6 @@ enum GitHelpers {
         let (logOutput, logRC) = Exec.git("log", "-1", "--format=%cI", at: path)
         let commitTime = logRC == 0 && !logOutput.isEmpty ? logOutput : ""
 
-        return GitInfo(remoteURL: remoteURL, branch: branch, status: status, lastCommitTime: commitTime)
+        return GitInfo(remoteURL: remoteURL, branch: branch, status: status, ahead: aheadCount, behind: behindCount, lastCommitTime: commitTime)
     }
 }

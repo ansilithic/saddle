@@ -20,7 +20,8 @@ enum Forge {
 
     static func fetchAllRepos() -> ForgeResult {
         var results = Array(repeating: ForgeResult(), count: providers.count)
-        results.withUnsafeMutableBufferPointer { buffer in
+        results.withUnsafeMutableBufferPointer { buf in
+            nonisolated(unsafe) let buffer = buf
             DispatchQueue.concurrentPerform(iterations: providers.count) { i in
                 let provider = providers[i]
                 if let token = provider.resolveToken() {

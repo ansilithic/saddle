@@ -16,11 +16,11 @@ struct GitHub: ForgeProvider, Sendable {
     }
 
     func fetchRepos(token: String) -> ForgeResult {
-        var personalRepos: [GitHubRepo] = []
-        var collabRepos: [GitHubRepo] = []
-        var starredRepos: [GitHubRepo] = []
-        var orgs: [GitHubOrg] = []
-        var user: GitHubUser?
+        nonisolated(unsafe) var personalRepos: [GitHubRepo] = []
+        nonisolated(unsafe) var collabRepos: [GitHubRepo] = []
+        nonisolated(unsafe) var starredRepos: [GitHubRepo] = []
+        nonisolated(unsafe) var orgs: [GitHubOrg] = []
+        nonisolated(unsafe) var user: GitHubUser?
 
         DispatchQueue.concurrentPerform(iterations: 5) { i in
             if i == 0 {
@@ -49,9 +49,11 @@ struct GitHub: ForgeProvider, Sendable {
 
         var orgRepos = Array(repeating: [GitHubRepo](), count: orgs.count)
         if !orgs.isEmpty {
-            orgRepos.withUnsafeMutableBufferPointer { buffer in
-                DispatchQueue.concurrentPerform(iterations: orgs.count) { i in
-                    buffer[i] = apiGetPaginated("/orgs/\(orgs[i].login)/repos", token: token)
+            orgRepos.withUnsafeMutableBufferPointer { buf in
+                nonisolated(unsafe) let buffer = buf
+                let orgLogins = orgs.map(\.login)
+                DispatchQueue.concurrentPerform(iterations: orgLogins.count) { i in
+                    buffer[i] = apiGetPaginated("/orgs/\(orgLogins[i])/repos", token: token)
                 }
             }
         }
@@ -107,7 +109,7 @@ struct GitHub: ForgeProvider, Sendable {
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 10
 
-        var result: Data?
+        nonisolated(unsafe) var result: Data?
         let sem = DispatchSemaphore(value: 0)
         URLSession.shared.dataTask(with: request) { data, response, _ in
             if let http = response as? HTTPURLResponse, http.statusCode == 200 {

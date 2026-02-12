@@ -11,7 +11,6 @@ enum SyncOutcome {
     case unchanged
     case skipped
     case failed(String)
-    case wouldSync
 }
 
 struct SyncResult {
@@ -19,7 +18,6 @@ struct SyncResult {
     var unchanged = 0
     var skipped = 0
     var failed = 0
-    var wouldSync = 0
     var failures: [(name: String, message: String)] = []
 
     mutating func record(_ outcome: SyncOutcome, name: String = "") {
@@ -30,11 +28,17 @@ struct SyncResult {
         case .failed(let msg):
             failed += 1
             if !name.isEmpty { failures.append((name, msg)) }
-        case .wouldSync: wouldSync += 1
         }
     }
 
-    var total: Int { synced + unchanged + skipped + failed + wouldSync }
+    var total: Int { synced + unchanged + skipped + failed }
+}
+
+enum HookHealth {
+    case noHook
+    case present
+    case healthy
+    case unhealthy
 }
 
 struct RemoteRepoInfo {
@@ -63,8 +67,12 @@ struct RepoInfo {
     let description: String
     let stargazers: Int
     let lastPushTime: String
+    let ahead: Int
+    let behind: Int
     let saddled: Bool
-    let hasHook: Bool
+    let hookHealth: HookHealth
     let isStarred: Bool
+
+    var hasHook: Bool { hookHealth != .noHook }
     let remoteOnly: Bool
 }

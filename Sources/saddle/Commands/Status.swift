@@ -28,6 +28,12 @@ struct Status: ParsableCommand {
     @Flag(help: "Show only unequipped repos.")
     var unequipped = false
 
+    @Flag(help: "Show only stray repos (local but not in manifest).")
+    var stray = false
+
+    @Flag(help: "Show only local repos (equipped + stray).")
+    var local = false
+
     @Flag(help: "Show only hooked repos.")
     var hooked = false
 
@@ -57,7 +63,7 @@ struct Status: ParsableCommand {
         let fullPath: String
         let git: GitHelpers.GitInfo
         let saddled: Bool
-        let hasHook: Bool
+        let hookHealth: HookHealth
     }
 
     func run() {
@@ -81,15 +87,10 @@ struct Status: ParsableCommand {
 
         let repos = applyFilters(allRepos)
 
-        if showLegend {
-            printLegend(repos: repos)
+        if !repos.isEmpty {
+            printReposSection(repos, forge: forgeResult, mountDir: devDir, showLegend: showLegend)
         } else {
             print()
-        }
-
-        if !repos.isEmpty {
-            printReposSection(repos, forge: forgeResult, mountDir: devDir)
-        } else {
             print()
             print(styled("No git repos found in \(FS.shortenPath(devDir))", .dim))
         }
@@ -111,10 +112,12 @@ struct Status: ParsableCommand {
         if unhooked && !hooked { filters.append("unhooked") }
         if starred && !unstarred { filters.append("starred") }
         if unstarred && !starred { filters.append("unstarred") }
+        if stray { filters.append("stray") }
+        if local { filters.append("local") }
         if archived { filters.append("archived") }
         if active { filters.append("active") }
         if all { filters.append("all") }
-        else if !hasAnyFilter && owner == nil { filters.append("equipped (default)") }
+        else if !hasAnyFilter && owner == nil { filters.append("local (default)") }
         if let owner { filters.append("owner: \(owner)") }
         return filters
     }
@@ -128,53 +131,128 @@ struct Status: ParsableCommand {
         print(styled("  \u{25BC} Filters applied:", .dim) + " " + filterText + " " + styled("(\(repos.count) repos)", .darkGray))
     }
 
-    private func printLegend(repos: [RepoInfo]) {
+    private func printLegend(repos: [RepoInfo], colHead: Int, colPath: Int) {
         print()
         let publicCount = repos.filter { $0.visibility == "public" }.count
-        let dirtyCount = repos.filter { $0.localStatus == "dirty" }.count
-        let saddledCount = repos.filter(\.saddled).count
-        let hookedCount = repos.filter(\.hasHook).count
         let archivedCount = repos.filter(\.isArchived).count
         let starredCount = repos.filter(\.isStarred).count
+        let dirtyCount = repos.filter { $0.localStatus == "dirty" }.count
+        let aheadCount = repos.filter { $0.ahead > 0 }.count
+        let behindCount = repos.filter { $0.behind > 0 }.count
+        let saddledCount = repos.filter { $0.saddled || !$0.remoteOnly }.count
+        let hookedCount = repos.filter(\.hasHook).count
+        let unhealthyCount = repos.filter { $0.hookHealth == .unhealthy }.count
 
-        let indicators: [(color: Color, count: Int, label: String)] = [
-            (.red, publicCount, "public"),
-            (.yellow, dirtyCount, "dirty"),
-            (.cyan, saddledCount, "equipped"),
-            (.magenta, hookedCount, "hooked"),
-            (.gray, archivedCount, "archived"),
-            (.yellow, starredCount, "starred"),
-        ]
-
-        for (i, ind) in indicators.enumerated() {
-            var prefix = ""
-            for c in 0..<6 {
-                if c == i {
-                    prefix += "\u{250C}"
-                } else if c < i {
-                    prefix += "\u{2502}"
-                } else {
-                    prefix += "\u{2500}"
-                }
-            }
-            prefix += "\u{2500}"
-            let symbol = ind.label == "starred" ? "\u{2605}" : "\u{25CF}"
-            print(styled(prefix, .dim) + " " + styled(symbol, ind.color) + " " + styled("\(ind.label)", ind.color) + " " + styled("(\(ind.count))", .dim))
+        struct LegendEntry {
+            let slot: Int
+            let color: Color
+            let count: Int
+            let label: String
+            let isStar: Bool
         }
 
-        print(styled("\u{2502}\u{2502}\u{2502}\u{2502}\u{2502}\u{2502}", .dim))
+        let originEntries: [LegendEntry] = [
+            LegendEntry(slot: 0, color: .red, count: publicCount, label: "public", isStar: false),
+            LegendEntry(slot: 1, color: .gray, count: archivedCount, label: "archived", isStar: false),
+            LegendEntry(slot: 2, color: .yellow, count: starredCount, label: "starred", isStar: true),
+        ]
+
+        let localEntries: [LegendEntry] = [
+            LegendEntry(slot: 0, color: .cyan, count: saddledCount, label: "equipped", isStar: false),
+            LegendEntry(slot: 1, color: .magenta, count: hookedCount, label: "hooked", isStar: false),
+            LegendEntry(slot: 2, color: .red, count: unhealthyCount, label: "unhealthy", isStar: false),
+        ]
+
+        let statusEntries: [LegendEntry] = [
+            LegendEntry(slot: 0, color: .red, count: dirtyCount, label: "dirty", isStar: false),
+            LegendEntry(slot: 1, color: .cyan, count: aheadCount, label: "ahead", isStar: false),
+            LegendEntry(slot: 2, color: .orange, count: behindCount, label: "behind", isStar: false),
+        ]
+
+        let originSlots = 3
+        let localSlots = 3
+        let statusSlots = 3
+        let localOffset = Self.originDotWidth + colHead
+        let statusOffset = localOffset + Self.localDotWidth + colPath
+
+        func entryText(_ entry: LegendEntry, slots: Int) -> (styled: String, width: Int) {
+            var wiring = ""
+            for c in 0..<slots {
+                if c == entry.slot {
+                    wiring += "\u{250C}"
+                } else if c < entry.slot {
+                    wiring += "\u{2502}"
+                } else {
+                    wiring += "\u{2500}"
+                }
+            }
+            wiring += "\u{2500}"
+            let symbol = entry.isStar ? "\u{2605}" : "\u{25CF}"
+            let countStr = "(\(entry.count))"
+            let text = styled(wiring, .dim) + " " + styled(symbol, entry.color) + " " + styled(entry.label, entry.color) + " " + styled(countStr, .dim)
+            let width = slots + 1 + 1 + 1 + 1 + entry.label.count + 1 + countStr.count
+            return (text, width)
+        }
+
+        let originPipes = styled(String(repeating: "\u{2502}", count: originSlots), .dim)
+        let localPipes = styled(String(repeating: "\u{2502}", count: localSlots), .dim)
+        let statusPipes = styled(String(repeating: "\u{2502}", count: statusSlots), .dim)
+
+        // Entry lines — the longest group determines row count
+        let entryCount = max(originEntries.count, max(localEntries.count, statusEntries.count))
+        for i in 0..<entryCount {
+            let left: String
+            let leftWidth: Int
+            if i < originEntries.count {
+                let entry = entryText(originEntries[i], slots: originSlots)
+                left = entry.styled
+                leftWidth = entry.width
+            } else {
+                left = originPipes
+                leftWidth = originSlots
+            }
+
+            let gap1 = String(repeating: " ", count: max(1, localOffset - leftWidth))
+
+            let middle: String
+            let middleWidth: Int
+            if i < localEntries.count {
+                let entry = entryText(localEntries[i], slots: localSlots)
+                middle = entry.styled
+                middleWidth = entry.width
+            } else {
+                middle = localPipes
+                middleWidth = localSlots
+            }
+
+            let gap2 = String(repeating: " ", count: max(1, statusOffset - localOffset - middleWidth))
+
+            let right: String
+            if i < statusEntries.count {
+                right = entryText(statusEntries[i], slots: statusSlots).styled
+            } else {
+                right = statusPipes
+            }
+
+            print(left + gap1 + middle + gap2 + right)
+        }
+
+        // Footer line — pipes flowing into header dots
+        let footerGap1 = String(repeating: " ", count: max(1, localOffset - originSlots))
+        let footerGap2 = String(repeating: " ", count: max(1, statusOffset - localOffset - localSlots))
+        print(originPipes + footerGap1 + localPipes + footerGap2 + statusPipes)
     }
 
     private var hasAnyFilter: Bool {
-        `public` || `private` || clean || dirty || equipped || unequipped
+        `public` || `private` || clean || dirty || equipped || unequipped || stray || local
             || hooked || unhooked || starred || unstarred || archived || active || owner != nil
     }
 
     private func applyFilters(_ repos: [RepoInfo]) -> [RepoInfo] {
-        let defaultEquipped = !all && !hasAnyFilter
+        let defaultLocal = !all && !hasAnyFilter
 
         return repos.filter { repo in
-            if defaultEquipped && !repo.saddled { return false }
+            if defaultLocal && !repo.saddled && repo.remoteOnly { return false }
             if `public` != `private` {
                 if `public` && repo.visibility != "public" { return false }
                 if `private` && repo.visibility != "private" { return false }
@@ -187,6 +265,8 @@ struct Status: ParsableCommand {
                 if equipped && !repo.saddled { return false }
                 if unequipped && repo.saddled { return false }
             }
+            if stray && (repo.saddled || repo.remoteOnly) { return false }
+            if local && repo.remoteOnly { return false }
             if hooked != unhooked {
                 if hooked && !repo.hasHook { return false }
                 if unhooked && repo.hasHook { return false }
@@ -211,7 +291,7 @@ struct Status: ParsableCommand {
     private func gatherRepos(manifest: Manifest?, devDir: String, declaredURLs: [String]) -> (repos: [RepoInfo], missingURLs: [String], forge: ForgeResult) {
         let normalizedDeclared = Set(declaredURLs.map { URLHelpers.normalize($0) })
 
-        var forgeResult = ForgeResult()
+        nonisolated(unsafe) var forgeResult = ForgeResult()
         let visGroup = DispatchGroup()
         visGroup.enter()
         DispatchQueue.global().async {
@@ -222,18 +302,31 @@ struct Status: ParsableCommand {
         let discoveredPaths = FS.findRepos(in: devDir)
         let repoCount = discoveredPaths.count
 
-        let emptyGit = GitHelpers.GitInfo(remoteURL: nil, branch: "", status: "", lastCommitTime: "")
-        var partials = Array(repeating: PartialInfo(relativePath: "", fullPath: "", git: emptyGit, saddled: false, hasHook: false), count: repoCount)
+        let emptyGit = GitHelpers.GitInfo(remoteURL: nil, branch: "", status: "", ahead: 0, behind: 0, lastCommitTime: "")
+        var partials = Array(repeating: PartialInfo(relativePath: "", fullPath: "", git: emptyGit, saddled: false, hookHealth: .noHook), count: repoCount)
 
-        partials.withUnsafeMutableBufferPointer { buffer in
+        partials.withUnsafeMutableBufferPointer { buf in
+            nonisolated(unsafe) let buffer = buf
             DispatchQueue.concurrentPerform(iterations: repoCount) { i in
                 let repoPath = discoveredPaths[i]
                 let relativePath = String(repoPath.dropFirst(devDir.count + 1))
                 let git = GitHelpers.info(at: repoPath)
                 let normalized = git.remoteURL.map { URLHelpers.normalize($0) }
                 let saddled = normalized.map { normalizedDeclared.contains($0) } ?? false
-                let hasHook = git.remoteURL.map { Sync.findHook(for: $0) != nil } ?? false
-                buffer[i] = PartialInfo(relativePath: relativePath, fullPath: repoPath, git: git, saddled: saddled, hasHook: hasHook)
+
+                let hookHealth: HookHealth
+                if let url = git.remoteURL, HookResolver.hasHook(for: url) {
+                    if let checkResolution = HookResolver.resolve(for: url, lifecycle: .check) {
+                        let (_, exitCode) = Exec.run(checkResolution.scriptPath, args: [], cwd: repoPath)
+                        hookHealth = exitCode == 0 ? .healthy : .unhealthy
+                    } else {
+                        hookHealth = .healthy
+                    }
+                } else {
+                    hookHealth = .noHook
+                }
+
+                buffer[i] = PartialInfo(relativePath: relativePath, fullPath: repoPath, git: git, saddled: saddled, hookHealth: hookHealth)
             }
         }
 
@@ -256,7 +349,7 @@ struct Status: ParsableCommand {
             let localStatus: String
             let localStatusColor: Color
             if p.git.status == "uncommitted changes" {
-                (localStatus, localStatusColor) = ("dirty", .yellow)
+                (localStatus, localStatusColor) = ("dirty", .red)
             } else {
                 (localStatus, localStatusColor) = ("clean", .green)
             }
@@ -278,8 +371,10 @@ struct Status: ParsableCommand {
                 description: description,
                 stargazers: stargazers,
                 lastPushTime: Self.relativeTime(from: p.git.lastCommitTime),
+                ahead: p.git.ahead,
+                behind: p.git.behind,
                 saddled: p.saddled,
-                hasHook: p.hasHook,
+                hookHealth: p.hookHealth,
                 isStarred: isStarred,
                 remoteOnly: false
             )
@@ -318,8 +413,10 @@ struct Status: ParsableCommand {
                 description: info.description,
                 stargazers: info.stargazers,
                 lastPushTime: pushedTime,
+                ahead: 0,
+                behind: 0,
                 saddled: normalizedDeclared.contains(normalizedURL),
-                hasHook: false,
+                hookHealth: .noHook,
                 isStarred: forgeResult.starredURLs.contains(normalizedURL),
                 remoteOnly: true
             ))
@@ -345,8 +442,10 @@ struct Status: ParsableCommand {
                 description: "",
                 stargazers: 0,
                 lastPushTime: "",
+                ahead: 0,
+                behind: 0,
                 saddled: true,
-                hasHook: false,
+                hookHealth: .noHook,
                 isStarred: forgeResult.starredURLs.contains(normalizedURL),
                 remoteOnly: true
             ))
@@ -368,10 +467,14 @@ struct Status: ParsableCommand {
         return 120
     }
 
-    private func printReposSection(_ repos: [RepoInfo], forge: ForgeResult, mountDir: String) {
+    private static let originDotWidth = 5  // 3 dots + 2 space separator
+    private static let localDotWidth = 4   // 3 dots + 1 space separator
+    private static let statusDotWidth = 4  // 3 dots + 1 space separator
+
+    private func printReposSection(_ repos: [RepoInfo], forge: ForgeResult, mountDir: String, showLegend: Bool) {
         let p = Self.colPadding
         let termWidth = Self.terminalWidth
-        let rowIndent = 8
+        let fixedDots = Self.originDotWidth + Self.localDotWidth + Self.statusDotWidth
 
         let mountLabel = FS.shortenPath(mountDir)
         let localPathHeaderWidth = "Local Path (\(mountLabel))".count
@@ -381,7 +484,7 @@ struct Status: ParsableCommand {
         let idealPath = max(localPathHeaderWidth, pathValues.map { $0.count }.max() ?? 0) + p
         let colUpdated = max("Last Commit".count, 14) + p
 
-        let budget = termWidth - rowIndent - colUpdated - Self.minDescLen
+        let budget = termWidth - fixedDots - colUpdated - Self.minDescLen
         let colHead: Int
         let colPath: Int
         if idealHead + idealPath <= budget {
@@ -393,7 +496,7 @@ struct Status: ParsableCommand {
             colPath = max(localPathHeaderWidth + p, budget - colHead)
         }
 
-        let fixedWidth = rowIndent + colHead + colPath + colUpdated
+        let fixedWidth = fixedDots + colHead + colPath + colUpdated
         let descWidth = max(Self.minDescLen, termWidth - fixedWidth)
 
         let sorted = repos.sorted { a, b in
@@ -403,16 +506,25 @@ struct Status: ParsableCommand {
             return aOrigin < bOrigin
         }
 
-        let dotColors: [Color] = [.red, .yellow, .cyan, .magenta, .gray, .yellow]
-        let dots = dotColors.enumerated().map { i, c in
-            styled(i == dotColors.count - 1 ? "\u{2605}" : "\u{25CF}", c)
-        }.joined()
-        let localPathCol = styled("Local Path", .dim) + " " + styled("(\(mountLabel))", .darkGray)
+        if showLegend {
+            printLegend(repos: repos, colHead: colHead, colPath: colPath)
+        } else {
+            print()
+        }
+
+        // Origin dots: public, archived, starred
+        let originDots = styled("\u{25CF}", .red) + styled("\u{25CF}", .gray) + styled("\u{2605}", .yellow)
+        // Local dots: equipped, hooked, health
+        let localDots = styled("\u{25CF}", .cyan) + styled("\u{25CF}", .magenta) + styled("\u{25CF}", .red)
+        // Status dots: dirty, ahead, behind
+        let statusDots = styled("\u{25CF}", .red) + styled("\u{25CF}", .cyan) + styled("\u{25CF}", .orange)
+
+        let localPathCol = localDots + " " + styled("Local Path", .dim) + " " + styled("(\(mountLabel))", .darkGray)
             + String(repeating: " ", count: max(0, colPath - localPathHeaderWidth))
-        let header = dots + styled("  ", .dim)
+        let header = originDots + styled("  ", .dim)
             + styled("Origin".padding(toLength: colHead, withPad: " ", startingAt: 0), .dim)
             + localPathCol
-            + styled("Last Commit".padding(toLength: colUpdated, withPad: " ", startingAt: 0), .dim)
+            + statusDots + " " + styled("Last Commit".padding(toLength: colUpdated, withPad: " ", startingAt: 0), .dim)
             + styled("Description", .dim)
         print(header)
         print(styled("\u{2500}".repeating(termWidth), .dim))
@@ -424,13 +536,29 @@ struct Status: ParsableCommand {
 
     private func printRepoRow(_ repo: RepoInfo, colHead: Int, colPath: Int, colUpdated: Int, colDesc: Int) {
         let p = Self.colPadding
-        let s1 = repo.visibility == "public" ? styled("\u{25CF}", .red) : " "
-        let s2 = repo.localStatus == "dirty" ? styled("\u{25CF}", .yellow) : " "
-        let s3 = repo.saddled ? styled("\u{25CF}", .cyan) : " "
-        let s4 = repo.hasHook ? styled("\u{25CF}", .magenta) : " "
-        let s5 = repo.isArchived ? styled("\u{25CF}", .gray) : " "
-        let s6 = repo.isStarred ? styled("\u{2605}", .yellow) : " "
-        let prefix = s1 + s2 + s3 + s4 + s5 + s6 + "  "
+
+        // Origin dots: public, archived, starred
+        let o1 = repo.visibility == "public" ? styled("\u{25CF}", .red) : " "
+        let o2 = repo.isArchived ? styled("\u{25CF}", .gray) : " "
+        let o3 = repo.isStarred ? styled("\u{2605}", .yellow) : " "
+        let originPrefix = o1 + o2 + o3 + "  "
+
+        // Local dots: equipped, hooked, health
+        let l1 = repo.saddled ? styled("\u{25CF}", .cyan) : " "
+        let l2 = repo.hasHook ? styled("\u{25CF}", .magenta) : " "
+        let l3: String
+        switch repo.hookHealth {
+        case .unhealthy: l3 = styled("\u{25CF}", .red)
+        default:         l3 = " "
+        }
+        let localPrefix = l1 + l2 + l3 + " "
+
+        // Status dots: dirty, ahead, behind
+        let s1 = repo.localStatus == "dirty" ? styled("\u{25CF}", .red) : " "
+        let s2 = repo.ahead > 0 ? styled("\u{25CF}", .cyan) : " "
+        let s3 = repo.behind > 0 ? styled("\u{25CF}", .orange) : " "
+        let statusPrefix = s1 + s2 + s3 + " "
+
         let missing = repo.saddled && repo.remoteOnly
         let stray = !repo.remoteOnly && !repo.saddled
         let dim = repo.remoteOnly || !repo.saddled
@@ -488,9 +616,9 @@ struct Status: ParsableCommand {
             descCol = ""
         }
 
-        let pathCol = stray ? styled(pathText, .blue) : (dim ? styled(pathText, .dim) : styled(pathText, .darkGray))
+        let pathCol = stray ? styled(pathText, .dim, .yellow) : (dim ? styled(pathText, .dim) : styled(pathText, .darkGray))
         let timeCol = dim ? styled(updatedText, .dim, timeColor) : styled(updatedText, timeColor)
-        print("\(prefix)\(headCol)\(pathCol)\(timeCol)\(descCol)")
+        print("\(originPrefix)\(headCol)\(localPrefix)\(pathCol)\(statusPrefix)\(timeCol)\(descCol)")
     }
 
     private func truncate(_ text: String, to maxLen: Int) -> String {

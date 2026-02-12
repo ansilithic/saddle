@@ -64,4 +64,12 @@ enum URLHelpers {
         guard parts.count >= 3 else { return "\(repoName(from: url)).sh" }
         return "\(parts[parts.count - 2])-\(parts[parts.count - 1]).sh"
     }
+
+    /// Derive a hook base name from a URL (owner-repo, no extension).
+    static func hookBaseName(from url: String) -> String {
+        let normalized = normalize(url)
+        let parts = normalized.split(separator: "/")
+        guard parts.count >= 3 else { return repoName(from: url) }
+        return "\(parts[parts.count - 2])-\(parts[parts.count - 1])"
+    }
 }
