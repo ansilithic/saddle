@@ -1,3 +1,4 @@
+import CLICore
 import Foundation
 
 struct Parser {
@@ -5,41 +6,88 @@ struct Parser {
     enum ParseError: Error, CustomStringConvertible {
         case fileNotFound(String)
         case emptyFile
+        case invalidFormat(String)
 
         var description: String {
             switch self {
             case .fileNotFound(let path): return "Manifest not found: \(path)"
             case .emptyFile: return "Manifest is empty"
+            case .invalidFormat(let msg): return "Invalid manifest: \(msg)"
             }
         }
     }
 
-    static let defaultRoot = "~/Developer"
+    static let defaultMount = "~/Developer"
 
     static func parse(at path: String) throws -> Manifest {
-        guard let content = FS.readFile(path) else {
+        guard let contents = FS.readFile(path) else {
             throw ParseError.fileNotFound(path)
         }
+        guard !contents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ParseError.emptyFile
+        }
 
-        var root: String? = nil
-        var urls: [String] = []
+        var mount = defaultMount
+        var repos: [String] = []
+        var inRepos = false
 
-        for line in content.components(separatedBy: "\n") {
+        for line in contents.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
 
-            if trimmed.hasPrefix("~/") || trimmed.hasPrefix("/") {
-                root = FS.expandPath(trimmed)
-            } else {
-                urls.append(trimmed)
+            if trimmed == "[repos]" {
+                inRepos = true
+                continue
+            }
+
+            if trimmed.hasPrefix("[") {
+                inRepos = false
+                continue
+            }
+
+            if inRepos {
+                let value = trimmed
+                    .trimmingCharacters(in: .whitespaces)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                if !value.isEmpty {
+                    repos.append(value)
+                }
+                continue
+            }
+
+            if let eqIndex = trimmed.firstIndex(of: "=") {
+                let key = trimmed[trimmed.startIndex..<eqIndex].trimmingCharacters(in: .whitespaces)
+                let raw = trimmed[trimmed.index(after: eqIndex)...].trimmingCharacters(in: .whitespaces)
+                let value = raw.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+
+                if key == "mount" {
+                    mount = value
+                }
             }
         }
 
-        guard root != nil || !urls.isEmpty else { throw ParseError.emptyFile }
-
-        return Manifest(
-            root: root ?? FS.expandPath(defaultRoot),
-            urls: urls
-        )
+        return Manifest(mount: FS.expandPath(mount), repos: repos)
     }
+
+    static func parseOrNil(at path: String) -> Manifest? {
+        do {
+            return try parse(at: path)
+        } catch {
+            print(styled("Parse error: \(error)", .red))
+            return nil
+        }
+    }
+
+    static func save(_ manifest: Manifest, to path: String) throws {
+        var lines: [String] = []
+        lines.append("mount = \"\(FS.shortenPath(manifest.mount))\"")
+        lines.append("")
+        lines.append("[repos]")
+        for repo in manifest.repos {
+            lines.append("\"\(repo)\"")
+        }
+        lines.append("")
+        _ = FS.writeFile(path, contents: lines.joined(separator: "\n"))
+    }
+
 }

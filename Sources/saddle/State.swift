@@ -30,7 +30,7 @@ struct State {
 
     static func touchLastRun() {
         var state = load()
-        state.lastRun = ISO8601DateFormatter().string(from: Date())
+        state.lastRun = DateFormatting.iso8601.string(from: Date())
         save(state)
     }
 }

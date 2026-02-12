@@ -40,6 +40,24 @@ struct Exec {
 
     @discardableResult
     static func git(_ args: String..., at path: String) -> (output: String, exitCode: Int32) {
-        run("/usr/bin/git", args: ["-C", path] + args, env: ["GIT_TERMINAL_PROMPT": "0"])
+        let task = Process()
+        let pipe = Pipe()
+
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        task.arguments = ["-C", path] + args
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        task.standardInput = nil
+
+        var environment = ProcessInfo.processInfo.environment
+        environment["GIT_TERMINAL_PROMPT"] = "0"
+        task.environment = environment
+
+        do { try task.run() } catch { return ("", 1) }
+        task.waitUntilExit()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return (output, task.terminationStatus)
     }
 }

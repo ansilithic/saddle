@@ -5,7 +5,7 @@ struct Log {
         let dir = Config.stateDir
         if !FS.isDirectory(dir) { _ = FS.createDirectory(dir) }
 
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let timestamp = DateFormatting.iso8601.string(from: Date())
         let entry = "[\(timestamp)] \(message)\n"
 
         let path = Config.logFile

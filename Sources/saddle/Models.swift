@@ -2,8 +2,8 @@ import CLICore
 import Foundation
 
 struct Manifest {
-    var root: String
-    var urls: [String]
+    var mount: String
+    var repos: [String]
 }
 
 enum SyncOutcome {
@@ -37,15 +37,34 @@ struct SyncResult {
     var total: Int { synced + unchanged + skipped + failed + wouldSync }
 }
 
+struct RemoteRepoInfo {
+    let visibility: String
+    let role: String
+    let defaultBranch: String
+    let pushedAt: String
+    let language: String
+    let description: String
+    let stargazers: Int
+    let isArchived: Bool
+}
+
 struct RepoInfo {
     let relativePath: String
     let fullPath: String
     let remoteURL: String?
+    let owner: String
     let branch: String
-    let status: String
-    let statusColor: Color
-    let lastCommitTime: String
+    let localStatus: String
+    let localStatusColor: Color
+    let visibility: String
+    let role: String
+    let isArchived: Bool
+    let language: String
+    let description: String
+    let stargazers: Int
+    let lastPushTime: String
     let saddled: Bool
     let hasHook: Bool
-    let visibility: String
+    let isStarred: Bool
+    let remoteOnly: Bool
 }

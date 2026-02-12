@@ -7,38 +7,31 @@ struct Up: ParsableCommand {
         abstract: "Clone missing repos and pull latest changes."
     )
 
-    func run() {
+    @Flag(name: .long, help: "Show what would happen without making changes.")
+    var dryRun = false
+
+    func run() throws {
         let path = Config.manifestPath
         guard FS.exists(path) else {
-            Output.error("No manifest found at \(Sync.shortenPath(path))")
-            CLIExitCode.error.exit()
+            Output.error("No manifest found at \(FS.shortenPath(path))")
+            throw ExitCode.failure
         }
 
-        guard let manifest = parseManifest(at: path) else {
-            CLIExitCode.error.exit()
+        guard let manifest = Parser.parseOrNil(at: path) else {
+            throw ExitCode.failure
         }
 
-        if manifest.urls.isEmpty {
+        if manifest.repos.isEmpty {
             print(styled("No repos declared in manifest.", .dim))
             return
         }
 
-        print()
-        print(styled("Manifest", .bold) + "        " + styled(Sync.shortenPath(path), .darkGray))
-        print(styled("Hooks", .bold) + "           " + styled(Sync.shortenPath(Config.hooksDir), .darkGray))
-        print(styled("Developer Root", .bold) + "  " + styled(Sync.shortenPath(manifest.root), .darkGray))
+        Config.printBanner(manifestPath: path, mountDir: manifest.mount)
 
-        Sync.syncDeclaredRepos(manifest.urls, root: manifest.root, dryRun: false)
+        Sync.syncDeclaredRepos(manifest.repos, mount: manifest.mount, dryRun: dryRun)
 
-        State.touchLastRun()
-    }
-
-    private func parseManifest(at path: String) -> Manifest? {
-        do {
-            return try Parser.parse(at: path)
-        } catch {
-            Output.error("Parse error: \(error)")
-            return nil
+        if !dryRun {
+            State.touchLastRun()
         }
     }
 }

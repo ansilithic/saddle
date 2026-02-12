@@ -1,62 +1,155 @@
 import Foundation
 
-enum GitHubAPI {
-    /// Batch-fetch visibility for GitHub repos (owned + collaborator).
-    /// Returns a map of normalized URL -> "public", "private", "fork", or "collaborator".
-    static func fetchVisibility() -> [String: String] {
-        var ownedResult: (String, Int32) = ("", 1)
-        var collabResult: (String, Int32) = ("", 1)
+struct GitHub: ForgeProvider, Sendable {
+    let hostname = "github.com"
+    let displayName = "GitHub"
 
-        DispatchQueue.concurrentPerform(iterations: 2) { i in
+    func resolveToken() -> String? {
+        let (output, rc) = Exec.run("/usr/bin/env", args: ["gh", "auth", "token"])
+        if rc == 0, !output.isEmpty { return output }
+        let tokenFile = Config.configDir + "/github-token"
+        if let contents = FS.readFile(tokenFile) {
+            let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return nil
+    }
+
+    func fetchRepos(token: String) -> ForgeResult {
+        var personalRepos: [GitHubRepo] = []
+        var collabRepos: [GitHubRepo] = []
+        var starredRepos: [GitHubRepo] = []
+        var orgs: [GitHubOrg] = []
+        var user: GitHubUser?
+
+        DispatchQueue.concurrentPerform(iterations: 5) { i in
             if i == 0 {
-                ownedResult = Exec.run("/usr/bin/env", args: [
-                    "gh", "repo", "list", "--limit", "500",
-                    "--json", "nameWithOwner,visibility,isFork"
+                personalRepos = apiGetPaginated("/user/repos", token: token, params: [
+                    ("affiliation", "owner"),
+                    ("visibility", "all"),
                 ])
+            } else if i == 1 {
+                collabRepos = apiGetPaginated("/user/repos", token: token, params: [
+                    ("affiliation", "collaborator"),
+                ])
+            } else if i == 2 {
+                if let data = apiGet("/user/orgs", token: token),
+                   let decoded = try? JSONDecoder().decode([GitHubOrg].self, from: data) {
+                    orgs = decoded
+                }
+            } else if i == 3 {
+                if let data = apiGet("/user", token: token),
+                   let decoded = try? JSONDecoder().decode(GitHubUser.self, from: data) {
+                    user = decoded
+                }
             } else {
-                collabResult = Exec.run("/usr/bin/env", args: [
-                    "gh", "api", "user/repos", "--paginate",
-                    "--method", "GET",
-                    "-f", "affiliation=collaborator",
-                    "-f", "per_page=100",
-                    "--jq", "[.[] | {nameWithOwner: .full_name, visibility: .visibility, isFork: .fork}]"
-                ])
+                starredRepos = apiGetPaginated("/user/starred", token: token)
             }
         }
 
-        var map: [String: String] = [:]
+        var orgRepos = Array(repeating: [GitHubRepo](), count: orgs.count)
+        if !orgs.isEmpty {
+            orgRepos.withUnsafeMutableBufferPointer { buffer in
+                DispatchQueue.concurrentPerform(iterations: orgs.count) { i in
+                    buffer[i] = apiGetPaginated("/orgs/\(orgs[i].login)/repos", token: token)
+                }
+            }
+        }
 
-        if ownedResult.1 == 0, !ownedResult.0.isEmpty,
-           let data = ownedResult.0.data(using: .utf8),
-           let repos = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+        var map: [String: RemoteRepoInfo] = [:]
+
+        for repo in personalRepos {
+            let key = "github.com/\(repo.fullName)".lowercased()
+            map[key] = Self.extract(repo, role: "owned")
+        }
+
+        for repos in orgRepos {
             for repo in repos {
-                guard let nwo = repo["nameWithOwner"] as? String else { continue }
-                let key = "github.com/\(nwo)".lowercased()
-                if repo["isFork"] as? Bool == true {
-                    map[key] = "fork"
-                } else if let vis = repo["visibility"] as? String {
-                    map[key] = vis.lowercased()
+                let key = "github.com/\(repo.fullName)".lowercased()
+                if map[key] == nil {
+                    map[key] = Self.extract(repo, role: "owned")
                 }
             }
         }
 
-        if collabResult.1 == 0, !collabResult.0.isEmpty {
-            let jsonStr = "[\(collabResult.0.replacingOccurrences(of: "]\n[", with: ","))]"
-                .replacingOccurrences(of: "[[", with: "[")
-                .replacingOccurrences(of: "]]", with: "]")
-            if let data = jsonStr.data(using: .utf8),
-               let repos = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                for repo in repos {
-                    guard let nwo = repo["nameWithOwner"] as? String else { continue }
-                    let key = "github.com/\(nwo)".lowercased()
-                    if map[key] == nil {
-                        let vis = (repo["visibility"] as? String)?.lowercased() ?? "private"
-                        map[key] = "\(vis) collab"
-                    }
-                }
+        for repo in collabRepos {
+            let key = "github.com/\(repo.fullName)".lowercased()
+            if map[key] == nil {
+                map[key] = Self.extract(repo, role: "collab")
             }
         }
 
-        return map
+        var starredURLs = Set<String>()
+        for repo in starredRepos {
+            let key = "github.com/\(repo.fullName)".lowercased()
+            starredURLs.insert(key)
+            if map[key] == nil {
+                map[key] = Self.extract(repo, role: "starred")
+            }
+        }
+
+        let orgNames = Set(orgs.map { $0.login.lowercased() })
+        return ForgeResult(repos: map, orgNames: orgNames, starredURLs: starredURLs, authenticatedUser: user?.login.lowercased())
+    }
+
+    // MARK: - Private
+
+    private func apiGet(_ path: String, token: String, params: [(String, String)] = []) -> Data? {
+        var urlString = "https://api.github.com\(path)"
+        if !params.isEmpty {
+            let query = params.map { "\($0.0)=\($0.1)" }.joined(separator: "&")
+            urlString += "?\(query)"
+        }
+        guard let url = URL(string: urlString) else { return nil }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 10
+
+        var result: Data?
+        let sem = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            if let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                result = data
+            }
+            sem.signal()
+        }.resume()
+        sem.wait()
+        return result
+    }
+
+    private func apiGetPaginated<T: Decodable>(_ path: String, token: String, params: [(String, String)] = []) -> [T] {
+        let decoder = JSONDecoder()
+        var all: [T] = []
+        var page = 1
+        while true {
+            var pageParams = params
+            pageParams.append(("per_page", "100"))
+            pageParams.append(("page", "\(page)"))
+            guard let data = apiGet(path, token: token, params: pageParams),
+                  let items = try? decoder.decode([T].self, from: data) else { break }
+            if items.isEmpty { break }
+            all.append(contentsOf: items)
+            if items.count < 100 { break }
+            page += 1
+        }
+        return all
+    }
+
+    private static func extract(_ repo: GitHubRepo, role: String) -> RemoteRepoInfo {
+        let vis = repo.visibility?.lowercased() ?? "private"
+        let isFork = repo.fork == true
+        let effectiveRole = isFork ? "fork" : role
+        return RemoteRepoInfo(
+            visibility: vis,
+            role: effectiveRole,
+            defaultBranch: repo.defaultBranch ?? "",
+            pushedAt: repo.pushedAt ?? "",
+            language: repo.language ?? "",
+            description: repo.description ?? "",
+            stargazers: repo.stargazersCount ?? 0,
+            isArchived: repo.archived ?? false
+        )
     }
 }

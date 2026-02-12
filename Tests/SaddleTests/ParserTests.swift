@@ -3,107 +3,145 @@ import XCTest
 
 final class ParserTests: XCTestCase {
 
-    func testParseURLs() throws {
-        let content = """
-            git@github.com:user/dotfiles.git
-            git@github.com:user/lab.git
+    // MARK: - TOML Parsing
+
+    func testParseTOMLRepos() throws {
+        let toml = """
+            mount = "~/Developer"
+
+            [repos]
+            "github.com/user/dotfiles"
+            "github.com/user/tools"
             """
-        let path = "/tmp/saddle-test-\(UUID().uuidString)"
-        try content.write(toFile: path, atomically: true, encoding: .utf8)
+        let path = tmpPath()
+        try toml.write(toFile: path, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
         let manifest = try Parser.parse(at: path)
-        XCTAssertEqual(manifest.urls.count, 2)
-        XCTAssertEqual(manifest.urls[0], "git@github.com:user/dotfiles.git")
-        XCTAssertEqual(manifest.urls[1], "git@github.com:user/lab.git")
+        XCTAssertEqual(manifest.repos.count, 2)
+        XCTAssertEqual(manifest.repos[0], "github.com/user/dotfiles")
+        XCTAssertEqual(manifest.repos[1], "github.com/user/tools")
     }
 
-    func testDefaultRoot() throws {
-        let content = "git@github.com:user/repo.git\n"
-        let path = "/tmp/saddle-test-\(UUID().uuidString)"
-        try content.write(toFile: path, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(atPath: path) }
-
-        let manifest = try Parser.parse(at: path)
-        XCTAssertTrue(manifest.root.hasSuffix("/Developer"))
-    }
-
-    func testCustomRoot() throws {
-        let content = """
-            /Users/test/Projects
-
-            git@github.com:user/repo.git
+    func testDefaultMount() throws {
+        let toml = """
+            [repos]
+            "github.com/user/repo"
             """
-        let path = "/tmp/saddle-test-\(UUID().uuidString)"
-        try content.write(toFile: path, atomically: true, encoding: .utf8)
+        let path = tmpPath()
+        try toml.write(toFile: path, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
         let manifest = try Parser.parse(at: path)
-        XCTAssertEqual(manifest.root, "/Users/test/Projects")
-        XCTAssertEqual(manifest.urls.count, 1)
+        XCTAssertTrue(manifest.mount.hasSuffix("/Developer"))
     }
 
-    func testTildeRoot() throws {
-        let content = "~/Projects\n"
-        let path = "/tmp/saddle-test-\(UUID().uuidString)"
-        try content.write(toFile: path, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(atPath: path) }
+    func testCustomMount() throws {
+        let toml = """
+            mount = "/Users/test/Projects"
 
-        let manifest = try Parser.parse(at: path)
-        XCTAssertFalse(manifest.root.hasPrefix("~"))
-        XCTAssertTrue(manifest.root.hasSuffix("/Projects"))
-    }
-
-    func testParseSkipsComments() throws {
-        let content = """
-            # This is a comment
-            git@github.com:user/dotfiles.git
-            # Another comment
+            [repos]
+            "github.com/user/repo"
             """
-        let path = "/tmp/saddle-test-\(UUID().uuidString)"
-        try content.write(toFile: path, atomically: true, encoding: .utf8)
+        let path = tmpPath()
+        try toml.write(toFile: path, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
         let manifest = try Parser.parse(at: path)
-        XCTAssertEqual(manifest.urls.count, 1)
+        XCTAssertEqual(manifest.mount, "/Users/test/Projects")
+        XCTAssertEqual(manifest.repos.count, 1)
     }
 
-    func testParseSkipsBlankLines() throws {
-        let content = """
-            git@github.com:user/a.git
+    func testTildeMount() throws {
+        let toml = """
+            mount = "~/Projects"
 
-            git@github.com:user/b.git
-
+            [repos]
             """
-        let path = "/tmp/saddle-test-\(UUID().uuidString)"
-        try content.write(toFile: path, atomically: true, encoding: .utf8)
+        let path = tmpPath()
+        try toml.write(toFile: path, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
         let manifest = try Parser.parse(at: path)
-        XCTAssertEqual(manifest.urls.count, 2)
+        XCTAssertFalse(manifest.mount.hasPrefix("~"))
+        XCTAssertTrue(manifest.mount.hasSuffix("/Projects"))
+    }
+
+    func testParseEmptyRepos() throws {
+        let toml = """
+            mount = "~/Developer"
+
+            [repos]
+            """
+        let path = tmpPath()
+        try toml.write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let manifest = try Parser.parse(at: path)
+        XCTAssertTrue(manifest.repos.isEmpty)
+    }
+
+    func testParseComments() throws {
+        let toml = """
+            # This is the mount point
+            mount = "~/Developer"
+
+            [repos]
+            # Personal repos
+            "github.com/user/dotfiles"
+            """
+        let path = tmpPath()
+        try toml.write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let manifest = try Parser.parse(at: path)
+        XCTAssertEqual(manifest.repos.count, 1)
+        XCTAssertEqual(manifest.repos[0], "github.com/user/dotfiles")
+    }
+
+    func testParseFileNotFound() throws {
+        XCTAssertThrowsError(try Parser.parse(at: "/tmp/nonexistent-saddle-file"))
     }
 
     func testParseEmptyFile() throws {
-        let content = "# Just comments\n"
-        let path = "/tmp/saddle-test-\(UUID().uuidString)"
-        try content.write(toFile: path, atomically: true, encoding: .utf8)
+        let path = tmpPath()
+        try "".write(toFile: path, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
         XCTAssertThrowsError(try Parser.parse(at: path))
     }
 
-    func testRootOnlyIsValid() throws {
-        let content = "~/Developer\n"
-        let path = "/tmp/saddle-test-\(UUID().uuidString)"
-        try content.write(toFile: path, atomically: true, encoding: .utf8)
+    // MARK: - Save Round-Trip
+
+    func testSaveRoundTrip() throws {
+        let manifest = Manifest(
+            mount: NSHomeDirectory() + "/Developer",
+            repos: ["github.com/user/alpha", "github.com/user/beta"]
+        )
+        let path = tmpPath()
         defer { try? FileManager.default.removeItem(atPath: path) }
 
-        let manifest = try Parser.parse(at: path)
-        XCTAssertTrue(manifest.urls.isEmpty)
+        try Parser.save(manifest, to: path)
+        let loaded = try Parser.parse(at: path)
+
+        XCTAssertEqual(loaded.repos, manifest.repos)
+        XCTAssertTrue(loaded.mount.hasSuffix("/Developer"))
     }
 
-    func testParseFileNotFound() throws {
-        XCTAssertThrowsError(try Parser.parse(at: "/tmp/nonexistent-saddle-file"))
+    // MARK: - URL Helpers
+
+    func testSSHURLFromNormalized() {
+        XCTAssertEqual(
+            URLHelpers.sshURL(from: "github.com/user/repo"),
+            "git@github.com:user/repo.git"
+        )
+    }
+
+    func testSSHURLPreservesNestedPath() {
+        XCTAssertEqual(
+            URLHelpers.sshURL(from: "github.com/org/nested/repo"),
+            "git@github.com:org/nested/repo.git"
+        )
     }
 
     func testNormalizeSSHUrl() {
@@ -126,6 +164,13 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(ssh, https)
     }
 
+    func testNormalizeAlreadyNormalized() {
+        XCTAssertEqual(
+            URLHelpers.normalize("github.com/user/repo"),
+            "github.com/user/repo"
+        )
+    }
+
     func testRepoNameFromSSH() {
         XCTAssertEqual(URLHelpers.repoName(from: "git@github.com:user/my-project.git"), "my-project")
     }
@@ -146,5 +191,11 @@ final class ParserTests: XCTestCase {
         let ssh = URLHelpers.hookName(from: "git@github.com:user/repo.git")
         let https = URLHelpers.hookName(from: "https://github.com/user/repo.git")
         XCTAssertEqual(ssh, https)
+    }
+
+    // MARK: - Helpers
+
+    private func tmpPath() -> String {
+        "/tmp/saddle-test-\(UUID().uuidString)"
     }
 }

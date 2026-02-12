@@ -3,15 +3,18 @@ import Foundation
 
 enum GitHelpers {
     struct GitInfo {
+        let remoteURL: String?
         let branch: String
         let status: String
-        let statusColor: Color
         let lastCommitTime: String
     }
 
     static func info(at path: String) -> GitInfo {
-        let (output, _) = Exec.git("status", "--porcelain=v2", "--branch", at: path)
-        let lines = output.components(separatedBy: "\n")
+        let (rawRemote, remoteRC) = Exec.git("remote", "get-url", "origin", at: path)
+        let remoteURL = remoteRC == 0 && !rawRemote.isEmpty ? rawRemote : nil
+
+        let (statusOutput, statusRC) = Exec.git("status", "--porcelain=v2", "--branch", at: path)
+        let lines = statusRC == 0 ? statusOutput.components(separatedBy: "\n") : []
 
         var hasChanges = false
         var aheadCount = 0
@@ -40,30 +43,23 @@ enum GitHelpers {
         }
 
         let status: String
-        let color: Color
         if hasChanges {
-            (status, color) = ("uncommitted changes", .yellow)
+            status = "uncommitted changes"
         } else if aheadCount > 0 && behindCount > 0 {
-            (status, color) = ("diverged", .yellow)
+            status = "diverged from remote"
         } else if aheadCount > 0 {
-            (status, color) = ("\(aheadCount) ahead", .yellow)
+            status = "\(aheadCount) commit\(aheadCount == 1 ? "" : "s") ahead"
         } else if behindCount > 0 {
-            (status, color) = ("\(behindCount) behind", .yellow)
+            status = "\(behindCount) commit\(behindCount == 1 ? "" : "s") behind"
         } else if isDetached {
-            (status, color) = ("detached", .gray)
+            status = "detached HEAD"
         } else {
-            (status, color) = ("clean", .green)
+            status = "up to date"
         }
 
-        let (logOutput, logRc) = Exec.git("log", "-1", "--format=%cr", at: path)
-        let commitTime = (logRc == 0 && !logOutput.isEmpty) ? logOutput : ""
+        let (logOutput, logRC) = Exec.git("log", "-1", "--format=%cI", at: path)
+        let commitTime = logRC == 0 && !logOutput.isEmpty ? logOutput : ""
 
-        return GitInfo(branch: branch, status: status, statusColor: color, lastCommitTime: commitTime)
-    }
-
-    static func getRemoteURL(at path: String) -> String? {
-        let (output, rc) = Exec.git("remote", "get-url", "origin", at: path)
-        guard rc == 0, !output.isEmpty else { return nil }
-        return output
+        return GitInfo(remoteURL: remoteURL, branch: branch, status: status, lastCommitTime: commitTime)
     }
 }

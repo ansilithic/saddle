@@ -12,8 +12,8 @@ struct Sync {
         let hookResult: HookResult?
     }
 
-    static func syncDeclaredRepos(_ urls: [String], root: String, dryRun: Bool) {
-        let devDir = root
+    static func syncDeclaredRepos(_ urls: [String], mount: String, dryRun: Bool) {
+        let devDir = mount
         var results = SyncResult()
         var rows: [RowResult] = []
 
@@ -64,7 +64,8 @@ struct Sync {
                 } else {
                     let parent = (clonePath as NSString).deletingLastPathComponent
                     if !FS.isDirectory(parent) { _ = FS.createDirectory(parent) }
-                    let (_, exitCode) = Exec.run("/usr/bin/git", args: ["clone", entry.url, clonePath], env: ["GIT_TERMINAL_PROMPT": "0"])
+                    let cloneURL = URLHelpers.sshURL(from: entry.url)
+                    let (_, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, clonePath], env: ["GIT_TERMINAL_PROMPT": "0"])
                     if exitCode == 0 {
                         outcome = .synced
                         entries[entryIdx].path = clonePath
@@ -168,11 +169,14 @@ struct Sync {
                     let result = runHook(for: entry.url, at: entry.path!)
                     spinner.stop()
 
+                    // Reprint prefix since spinner clears the line
+                    print("    \(styled("[\(phaseIdx + 1)/\(hookIndices.count)]", .dim)) \(entry.name)", terminator: "")
+
                     if let result = result {
                         hookResults[entryIdx] = result
                         if case .ran(_, let exitCode, _) = result {
-                            let bagStatus = exitCode == 0 ? styled("ok", .green) : styled("exit \(exitCode)", .red)
-                            print(" \(bagStatus)")
+                            let status = exitCode == 0 ? styled("ok", .green) : styled("exit \(exitCode)", .red)
+                            print(" \(status)")
                         } else {
                             print()
                         }
@@ -212,11 +216,6 @@ struct Sync {
         print()
     }
 
-    static func shortenPath(_ path: String) -> String {
-        let home = FS.expandPath("~")
-        return path.replacingOccurrences(of: home, with: "~")
-    }
-
     // MARK: - Hooks
 
     enum HookResult {
@@ -242,7 +241,7 @@ struct Sync {
         if !FS.isDirectory(logsDir) { _ = FS.createDirectory(logsDir) }
         let logName = hookName.replacingOccurrences(of: ".sh", with: ".log")
         let logPath = "\(logsDir)/\(logName)"
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let timestamp = DateFormatting.iso8601.string(from: Date())
         let logContent = "[\(timestamp)] exit \(exitCode)\n\(output)\n"
         _ = FS.writeFile(logPath, contents: logContent)
 
@@ -255,44 +254,16 @@ struct Sync {
 
     // MARK: - Output
 
-    final class BrailleSpinner: @unchecked Sendable {
-        private static let frames = ["\u{280B}", "\u{2819}", "\u{2839}", "\u{2838}", "\u{283C}", "\u{2834}", "\u{2826}", "\u{2827}", "\u{2807}", "\u{280F}"]
-        private var running = true
-        private let done = DispatchSemaphore(value: 0)
-
-        func start() {
-            running = true
-            Thread.detachNewThread {
-                var i = 0
-                while self.running {
-                    let frame = Self.frames[i % Self.frames.count]
-                    print(" \(styled(frame, .dim))", terminator: "")
-                    fflush(stdout)
-                    Thread.sleep(forTimeInterval: 0.08)
-                    print("\u{1B}[2D\u{1B}[K", terminator: "")
-                    fflush(stdout)
-                    i += 1
-                }
-                self.done.signal()
-            }
-        }
-
-        func stop() {
-            running = false
-            done.wait()
-        }
-    }
-
     private static func printHeader(colName: Int, colStatus: Int, colHook: Int) {
         print()
         let header = "     "
-            + "Repo".padding(toLength: colName, withPad: " ", startingAt: 0)
-            + "Local Status".padding(toLength: colStatus, withPad: " ", startingAt: 0)
-            + "Hook".padding(toLength: colHook, withPad: " ", startingAt: 0)
+            + "Repo".padded(to: colName)
+            + "Local Status".padded(to: colStatus)
+            + "Hook".padded(to: colHook)
             + "Log"
         print(styled(header, .dim))
         let totalWidth = 5 + colName + colStatus + colHook + 20
-        print(styled(String(repeating: "\u{2500}", count: totalWidth), .dim))
+        print(styled("\u{2500}".repeating(totalWidth), .dim))
     }
 
     private static func statusLabel(_ outcome: SyncOutcome) -> (String, Color) {
@@ -316,23 +287,22 @@ struct Sync {
     private static func printRow(_ name: String, _ outcome: SyncOutcome, _ hookResult: HookResult?, for url: String, colName: Int, colStatus: Int, colHook: Int) {
         let indicator = outcomeIndicator(outcome)
         let (statusText, color) = statusLabel(outcome)
-        let paddedName = name.padding(toLength: colName, withPad: " ", startingAt: 0)
-        let paddedStatus = styled(statusText.padding(toLength: colStatus, withPad: " ", startingAt: 0), color)
+        let paddedName = name.padded(to: colName)
+        let paddedStatus = styled(statusText, color).padded(to: colStatus)
 
         let hookCol: String
         let logCol: String
         switch hookResult {
         case .pending:
             let hookName = URLHelpers.hookName(from: url)
-            hookCol = styled(hookName.padding(toLength: colHook, withPad: " ", startingAt: 0), .dim)
+            hookCol = styled(hookName, .dim).padded(to: colHook)
             logCol = ""
         case .ran(let hookName, let exitCode, let logPath):
             let status = exitCode == 0 ? styled("ok", .green) : styled("exit \(exitCode)", .red)
-            let entry = "\(hookName) \(exitCode == 0 ? "ok" : "exit \(exitCode)")"
-            hookCol = styled(hookName, .dim) + " " + status + String(repeating: " ", count: max(0, colHook - entry.count))
-            logCol = styled("\u{2192} ", .dim) + styled(shortenPath(logPath), .darkGray)
+            hookCol = (styled(hookName, .dim) + " " + status).padded(to: colHook)
+            logCol = styled("\u{2192} ", .dim) + styled(FS.shortenPath(logPath), .darkGray)
         case nil:
-            hookCol = styled("\u{2014}".padding(toLength: colHook, withPad: " ", startingAt: 0), .dim)
+            hookCol = styled("\u{2014}", .dim).padded(to: colHook)
             logCol = ""
         }
 

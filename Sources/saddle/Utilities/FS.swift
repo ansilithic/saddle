@@ -62,6 +62,11 @@ struct FS {
         }
     }
 
+    static func shortenPath(_ path: String) -> String {
+        let home = expandPath("~")
+        return path.replacingOccurrences(of: home, with: "~")
+    }
+
     static func findRepos(in root: String) -> [String] {
         guard isDirectory(root) else { return [] }
 

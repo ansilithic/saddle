@@ -28,6 +28,35 @@ enum URLHelpers {
         return lastComponent
     }
 
+    /// Derive the owner/org from a URL.
+    static func owner(from url: String) -> String {
+        let normalized = normalize(url)
+        let parts = normalized.split(separator: "/")
+        guard parts.count >= 3 else { return "" }
+        return String(parts[parts.count - 2])
+    }
+
+    /// Extract the hostname from a normalized URL.
+    static func host(from url: String) -> String {
+        let normalized = normalize(url)
+        return String(normalized.split(separator: "/").first ?? "")
+    }
+
+    /// Extract the path after the hostname from a normalized URL.
+    static func pathAfterHost(from url: String) -> String {
+        let normalized = normalize(url)
+        guard let slashIdx = normalized.firstIndex(of: "/") else { return normalized }
+        return String(normalized[normalized.index(after: slashIdx)...])
+    }
+
+    /// Convert a normalized URL to a cloneable SSH URL.
+    /// github.com/user/repo -> git@github.com:user/repo.git
+    static func sshURL(from normalized: String) -> String {
+        let parts = normalized.split(separator: "/", maxSplits: 1)
+        guard parts.count == 2 else { return normalized }
+        return "git@\(parts[0]):\(parts[1]).git"
+    }
+
     /// Derive a hook name from a URL (owner-repo.sh).
     static func hookName(from url: String) -> String {
         let normalized = normalize(url)
