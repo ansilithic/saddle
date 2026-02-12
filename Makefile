@@ -8,6 +8,7 @@ RESET := \033[0m
 
 # Config
 BIN_DIR := /usr/local/bin
+COMPLETIONS_DIR := $(HOME)/.local/share/zsh/completions
 BINARY := saddle
 
 .DEFAULT_GOAL := help
@@ -81,14 +82,9 @@ completions:
 	fi
 	@mkdir -p completions
 	@.build/release/$(BINARY) completions > completions/_$(BINARY)
-	@FPATH_DIR=$$(zsh -ic 'print $$fpath[1]'); \
-	if [ -d "$$FPATH_DIR" ]; then \
-		cp completions/_$(BINARY) "$$FPATH_DIR/_$(BINARY)"; \
-		echo "$(GREEN)Completions installed to $$FPATH_DIR$(RESET)"; \
-	else \
-		echo "$(GREEN)Completions generated in completions/$(RESET)"; \
-		echo "$(YELLOW)Could not detect fpath directory — copy completions/_$(BINARY) manually$(RESET)"; \
-	fi
+	@mkdir -p $(COMPLETIONS_DIR)
+	@cp completions/_$(BINARY) $(COMPLETIONS_DIR)/_$(BINARY)
+	@echo "$(GREEN)Completions installed to $(COMPLETIONS_DIR)$(RESET)"
 
 # ============================================================
 # Help
