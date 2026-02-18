@@ -4,6 +4,12 @@ import Foundation
 struct Manifest {
     var mount: String
     var repos: [String]
+    var cloneProtocol: CloneProtocol = .ssh
+
+    enum CloneProtocol: String {
+        case ssh
+        case https
+    }
 }
 
 enum SyncOutcome {
@@ -32,13 +38,6 @@ struct SyncResult {
     }
 
     var total: Int { synced + unchanged + skipped + failed }
-}
-
-enum HookHealth {
-    case noHook
-    case present
-    case healthy
-    case unhealthy
 }
 
 struct RemoteRepoInfo {
@@ -70,9 +69,7 @@ struct RepoInfo {
     let ahead: Int
     let behind: Int
     let saddled: Bool
-    let hookHealth: HookHealth
+    let hasHook: Bool
     let isStarred: Bool
-
-    var hasHook: Bool { hookHealth != .noHook }
     let remoteOnly: Bool
 }

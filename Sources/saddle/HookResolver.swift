@@ -10,7 +10,6 @@ enum Lifecycle {
     case install
     case update
     case uninstall
-    case check
 }
 
 struct Resolution {
@@ -28,9 +27,9 @@ enum HookResolver {
     /// 1. Directory format: `hooks/owner-repo/{lifecycle}.sh`
     /// 2. For `.update`: fall back to `install.sh` if no `update.sh`
     /// 3. Legacy format: `hooks/owner-repo.sh` (install/update only)
-    static func resolve(for url: String, lifecycle: Lifecycle) -> Resolution? {
+    static func resolve(for url: String, lifecycle: Lifecycle, hooksDir: String = Config.hooksDir) -> Resolution? {
         let baseName = URLHelpers.hookBaseName(from: url)
-        let dirPath = "\(Config.hooksDir)/\(baseName)"
+        let dirPath = "\(hooksDir)/\(baseName)"
 
         if FS.isDirectory(dirPath) {
             let scriptName: String
@@ -38,7 +37,6 @@ enum HookResolver {
             case .install:   scriptName = "install.sh"
             case .update:    scriptName = "update.sh"
             case .uninstall: scriptName = "uninstall.sh"
-            case .check:     scriptName = "check.sh"
             }
 
             let scriptPath = "\(dirPath)/\(scriptName)"
@@ -57,7 +55,7 @@ enum HookResolver {
 
         // Legacy format: owner-repo.sh (only for install/update)
         if lifecycle == .install || lifecycle == .update {
-            let legacyPath = "\(Config.hooksDir)/\(baseName).sh"
+            let legacyPath = "\(hooksDir)/\(baseName).sh"
             if FS.exists(legacyPath) && FS.isExecutable(legacyPath) {
                 return Resolution(lifecycle: lifecycle, scriptPath: legacyPath, hookName: baseName, isLegacy: true)
             }
@@ -67,12 +65,12 @@ enum HookResolver {
     }
 
     /// Check if any lifecycle hook exists for a URL.
-    static func hasHook(for url: String) -> Bool {
+    static func hasHook(for url: String, hooksDir: String = Config.hooksDir) -> Bool {
         let baseName = URLHelpers.hookBaseName(from: url)
-        let dirPath = "\(Config.hooksDir)/\(baseName)"
+        let dirPath = "\(hooksDir)/\(baseName)"
 
         if FS.isDirectory(dirPath) {
-            let scripts = ["install.sh", "update.sh", "uninstall.sh", "check.sh"]
+            let scripts = ["install.sh", "update.sh", "uninstall.sh"]
             for script in scripts {
                 let path = "\(dirPath)/\(script)"
                 if FS.exists(path) && FS.isExecutable(path) {
@@ -82,7 +80,7 @@ enum HookResolver {
         }
 
         // Check legacy format
-        let legacyPath = "\(Config.hooksDir)/\(baseName).sh"
+        let legacyPath = "\(hooksDir)/\(baseName).sh"
         return FS.exists(legacyPath) && FS.isExecutable(legacyPath)
     }
 

@@ -11,6 +11,37 @@ enum GitHelpers {
         let lastCommitTime: String
     }
 
+    static func detectRemoteFromCurrentDirectory() -> String? {
+        let cwd = FileManager.default.currentDirectoryPath
+        let (output, exitCode) = Exec.git("remote", "get-url", "origin", at: cwd)
+        guard exitCode == 0, !output.isEmpty else { return nil }
+        return URLHelpers.normalize(output)
+    }
+
+    static func findRepoOnDisk(url: String, in devDir: String) -> String? {
+        let normalized = URLHelpers.normalize(url)
+
+        // Check expected path first
+        let expectedPath = "\(devDir)/\(URLHelpers.pathAfterHost(from: url))"
+        if FS.isDirectory(expectedPath) {
+            let (output, rc) = Exec.git("remote", "get-url", "origin", at: expectedPath)
+            if rc == 0, URLHelpers.normalize(output) == normalized {
+                return expectedPath
+            }
+        }
+
+        // Scan mount dir for matching remote
+        let discoveredPaths = FS.findRepos(in: devDir)
+        for repoPath in discoveredPaths {
+            let (output, rc) = Exec.git("remote", "get-url", "origin", at: repoPath)
+            if rc == 0, URLHelpers.normalize(output) == normalized {
+                return repoPath
+            }
+        }
+
+        return nil
+    }
+
     static func info(at path: String) -> GitInfo {
         let (rawRemote, remoteRC) = Exec.git("remote", "get-url", "origin", at: path)
         let remoteURL = remoteRC == 0 && !rawRemote.isEmpty ? rawRemote : nil

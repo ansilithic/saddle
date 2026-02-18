@@ -128,6 +128,64 @@ final class ParserTests: XCTestCase {
         XCTAssertTrue(loaded.mount.hasSuffix("/Developer"))
     }
 
+    func testParseProtocolHTTPS() throws {
+        let toml = """
+            mount = "~/Developer"
+            protocol = "https"
+
+            [repos]
+            "github.com/user/repo"
+            """
+        let path = tmpPath()
+        try toml.write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let manifest = try Parser.parse(at: path)
+        XCTAssertEqual(manifest.cloneProtocol, .https)
+    }
+
+    func testParseProtocolDefaultsToSSH() throws {
+        let toml = """
+            [repos]
+            "github.com/user/repo"
+            """
+        let path = tmpPath()
+        try toml.write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let manifest = try Parser.parse(at: path)
+        XCTAssertEqual(manifest.cloneProtocol, .ssh)
+    }
+
+    func testSaveRoundTripWithProtocol() throws {
+        let manifest = Manifest(
+            mount: NSHomeDirectory() + "/Developer",
+            repos: ["github.com/user/repo"],
+            cloneProtocol: .https
+        )
+        let path = tmpPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        try Parser.save(manifest, to: path)
+        let loaded = try Parser.parse(at: path)
+
+        XCTAssertEqual(loaded.cloneProtocol, .https)
+        XCTAssertEqual(loaded.repos, manifest.repos)
+    }
+
+    func testSaveOmitsSSHProtocol() throws {
+        let manifest = Manifest(
+            mount: NSHomeDirectory() + "/Developer",
+            repos: ["github.com/user/repo"]
+        )
+        let path = tmpPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        try Parser.save(manifest, to: path)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+        XCTAssertFalse(contents.contains("protocol"))
+    }
+
     // MARK: - URL Helpers
 
     func testSSHURLFromNormalized() {

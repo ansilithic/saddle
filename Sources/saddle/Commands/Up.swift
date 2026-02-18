@@ -7,6 +7,9 @@ struct Up: ParsableCommand {
         abstract: "Clone missing repos and pull latest changes."
     )
 
+    @Flag(name: .long, help: "Skip running hooks after sync.")
+    var noHooks = false
+
     func run() throws {
         let path = Config.manifestPath
         guard FS.exists(path) else {
@@ -25,7 +28,7 @@ struct Up: ParsableCommand {
 
         Config.printBanner(manifestPath: path, mountDir: manifest.mount)
 
-        Sync.syncDeclaredRepos(manifest.repos, mount: manifest.mount)
+        Sync.syncDeclaredRepos(manifest.repos, mount: manifest.mount, cloneProtocol: manifest.cloneProtocol, runHooks: !noHooks)
 
         State.touchLastRun()
     }

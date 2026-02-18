@@ -79,7 +79,7 @@ Config lives at `~/.config/saddle/`.
 
 ### Manifest
 
-`manifest.toml` — lists your repos and where to clone them.
+`manifest.toml` — lists your repos and where to clone them. The format is a minimal TOML subset: key-value pairs and a `[repos]` section of quoted strings. Comments (`#`) and blank lines are supported.
 
 ```toml
 mount = "~/Developer"
@@ -90,23 +90,41 @@ mount = "~/Developer"
 "github.com/you/cool-cli"
 ```
 
-The `mount` field sets the root directory (defaults to `~/Developer`). Repos are cloned into subdirectories matching their remote path.
+The `mount` field sets the root directory (defaults to `~/Developer`). Repos are cloned into `owner/repo` subdirectories matching their remote path.
+
+Set `protocol` to control how repos are cloned (defaults to `ssh`):
+
+```toml
+protocol = "https"
+```
+
+SSH requires keys configured with your git host. HTTPS works with credential helpers or token-based auth.
 
 ### Hooks
 
-`hooks/` — executable scripts named `owner-repo.sh` that run after each sync. The script's working directory is the repo itself.
+`hooks/` — executable scripts that run during sync and lifecycle events. The script's working directory is the repo itself.
 
-```sh
-# ~/.config/saddle/hooks/you-dotfiles.sh
-#!/bin/sh
-make install
+Two formats are supported:
+
+**Directory format** (recommended) — separate scripts per lifecycle phase:
+
+```
+~/.config/saddle/hooks/you-dotfiles/
+  install.sh     # runs on first clone
+  update.sh      # runs on subsequent syncs (falls back to install.sh if missing)
+  uninstall.sh   # runs during saddle unequip
+  check.sh       # runs during saddle status (exit 0 = healthy)
 ```
 
-```sh
-chmod +x ~/.config/saddle/hooks/you-dotfiles.sh
+**Legacy format** — a single script for install and update:
+
+```
+~/.config/saddle/hooks/you-dotfiles.sh
 ```
 
-Hooks are how repos install themselves — symlink configs, compile binaries, run setup scripts.
+All hook scripts must be executable (`chmod +x`). Hook names are derived from the repo URL: `github.com/you/dotfiles` becomes `you-dotfiles`.
+
+Hooks are how repos install themselves — symlink configs, compile binaries, run setup scripts. Output is logged to `~/.local/state/saddle/hooks/`.
 
 ### State
 
@@ -126,7 +144,27 @@ With a GitHub token, saddle shows repo visibility, discovers remote repos not cl
 2. `GITHUB_TOKEN` environment variable
 3. `~/.config/saddle/github-token` file
 
+GitLab is also supported. Token is resolved from:
+
+1. `glab auth token` (if `glab` CLI is installed)
+2. `GITLAB_TOKEN` environment variable
+3. `~/.config/saddle/gitlab-token` file
+
+Token files should be readable only by you (`chmod 600`). The CLI-based methods (`gh auth token`, `glab auth token`) are preferred as they use the system keychain.
+
 Without a token, everything still works — visibility just shows `—`.
+
+## Shell completions
+
+Zsh completions are installed automatically with `make install`. For bash or fish:
+
+```sh
+# Bash
+saddle --generate-completion-script bash > ~/.local/share/bash-completion/completions/saddle
+
+# Fish
+saddle --generate-completion-script fish > ~/.config/fish/completions/saddle.fish
+```
 
 ## Requirements
 

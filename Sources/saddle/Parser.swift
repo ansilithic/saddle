@@ -28,6 +28,7 @@ struct Parser {
         }
 
         var mount = defaultMount
+        var cloneProtocol = Manifest.CloneProtocol.ssh
         var repos: [String] = []
         var inRepos = false
 
@@ -62,11 +63,15 @@ struct Parser {
 
                 if key == "mount" {
                     mount = value
+                } else if key == "protocol" {
+                    if let parsed = Manifest.CloneProtocol(rawValue: value.lowercased()) {
+                        cloneProtocol = parsed
+                    }
                 }
             }
         }
 
-        return Manifest(mount: FS.expandPath(mount), repos: repos)
+        return Manifest(mount: FS.expandPath(mount), repos: repos, cloneProtocol: cloneProtocol)
     }
 
     static func parseOrNil(at path: String) -> Manifest? {
@@ -81,6 +86,9 @@ struct Parser {
     static func save(_ manifest: Manifest, to path: String) throws {
         var lines: [String] = []
         lines.append("mount = \"\(FS.shortenPath(manifest.mount))\"")
+        if manifest.cloneProtocol != .ssh {
+            lines.append("protocol = \"\(manifest.cloneProtocol.rawValue)\"")
+        }
         lines.append("")
         lines.append("[repos]")
         for repo in manifest.repos {

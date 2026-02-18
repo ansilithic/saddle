@@ -15,7 +15,11 @@ struct Unequip: ParsableCommand {
         if let arg = repo {
             normalized = URLHelpers.normalize(arg)
         } else {
-            normalized = try detectFromCurrentDirectory()
+            guard let detected = GitHelpers.detectRemoteFromCurrentDirectory() else {
+                Output.error("No git remote found in current directory")
+                throw ExitCode.failure
+            }
+            normalized = detected
         }
 
         let manifestPath = Config.manifestPath
@@ -30,7 +34,7 @@ struct Unequip: ParsableCommand {
         }
 
         // Find repo on disk
-        let repoPath = findRepoOnDisk(url: normalized, in: manifest.mount)
+        let repoPath = GitHelpers.findRepoOnDisk(url: normalized, in: manifest.mount)
 
         // Run uninstall hook
         if let repoPath, let resolution = HookResolver.resolve(for: normalized, lifecycle: .uninstall) {
@@ -53,25 +57,4 @@ struct Unequip: ParsableCommand {
         print(styled("Unequipped", .yellow) + " " + normalized)
     }
 
-    private func findRepoOnDisk(url: String, in devDir: String) -> String? {
-        let normalized = URLHelpers.normalize(url)
-        let discoveredPaths = FS.findRepos(in: devDir)
-        for repoPath in discoveredPaths {
-            let (output, rc) = Exec.git("remote", "get-url", "origin", at: repoPath)
-            if rc == 0, URLHelpers.normalize(output) == normalized {
-                return repoPath
-            }
-        }
-        return nil
-    }
-
-    private func detectFromCurrentDirectory() throws -> String {
-        let cwd = FileManager.default.currentDirectoryPath
-        let (output, exitCode) = Exec.git("remote", "get-url", "origin", at: cwd)
-        guard exitCode == 0, !output.isEmpty else {
-            Output.error("No git remote found in current directory")
-            throw ExitCode.failure
-        }
-        return URLHelpers.normalize(output)
-    }
 }

@@ -52,8 +52,8 @@ struct Status: ParsableCommand {
     @Flag(help: "Show only active (non-archived) repos.")
     var active = false
 
-    @Flag(name: .long, help: "Show the status legend.")
-    var showLegend = false
+    @Flag(name: .long, help: "Hide the status legend.")
+    var hideLegend = false
 
     @Option(help: "Show only repos owned by <owner>.")
     var owner: String?
@@ -63,7 +63,7 @@ struct Status: ParsableCommand {
         let fullPath: String
         let git: GitHelpers.GitInfo
         let saddled: Bool
-        let hookHealth: HookHealth
+        let hasHook: Bool
     }
 
     func run() {
@@ -88,7 +88,7 @@ struct Status: ParsableCommand {
         let repos = applyFilters(allRepos)
 
         if !repos.isEmpty {
-            printReposSection(repos, forge: forgeResult, mountDir: devDir, showLegend: showLegend)
+            printReposSection(repos, forge: forgeResult, mountDir: devDir, showLegend: !hideLegend)
         } else {
             print()
             print()
@@ -129,118 +129,6 @@ struct Status: ParsableCommand {
             : styled(filters.joined(separator: ", "), .cyan)
         print()
         print(styled("  \u{25BC} Filters applied:", .dim) + " " + filterText + " " + styled("(\(repos.count) repos)", .darkGray))
-    }
-
-    private func printLegend(repos: [RepoInfo], colHead: Int, colPath: Int) {
-        print()
-        let publicCount = repos.filter { $0.visibility == "public" }.count
-        let archivedCount = repos.filter(\.isArchived).count
-        let starredCount = repos.filter(\.isStarred).count
-        let dirtyCount = repos.filter { $0.localStatus == "dirty" }.count
-        let aheadCount = repos.filter { $0.ahead > 0 }.count
-        let behindCount = repos.filter { $0.behind > 0 }.count
-        let saddledCount = repos.filter { $0.saddled || !$0.remoteOnly }.count
-        let hookedCount = repos.filter(\.hasHook).count
-        let unhealthyCount = repos.filter { $0.hookHealth == .unhealthy }.count
-
-        struct LegendEntry {
-            let slot: Int
-            let color: Color
-            let count: Int
-            let label: String
-            let isStar: Bool
-        }
-
-        let originEntries: [LegendEntry] = [
-            LegendEntry(slot: 0, color: .red, count: publicCount, label: "public", isStar: false),
-            LegendEntry(slot: 1, color: .gray, count: archivedCount, label: "archived", isStar: false),
-            LegendEntry(slot: 2, color: .yellow, count: starredCount, label: "starred", isStar: true),
-        ]
-
-        let localEntries: [LegendEntry] = [
-            LegendEntry(slot: 0, color: .cyan, count: saddledCount, label: "equipped", isStar: false),
-            LegendEntry(slot: 1, color: .magenta, count: hookedCount, label: "hooked", isStar: false),
-            LegendEntry(slot: 2, color: .red, count: unhealthyCount, label: "unhealthy", isStar: false),
-        ]
-
-        let statusEntries: [LegendEntry] = [
-            LegendEntry(slot: 0, color: .red, count: dirtyCount, label: "dirty", isStar: false),
-            LegendEntry(slot: 1, color: .cyan, count: aheadCount, label: "ahead", isStar: false),
-            LegendEntry(slot: 2, color: .orange, count: behindCount, label: "behind", isStar: false),
-        ]
-
-        let originSlots = 3
-        let localSlots = 3
-        let statusSlots = 3
-        let localOffset = Self.originDotWidth + colHead
-        let statusOffset = localOffset + Self.localDotWidth + colPath
-
-        func entryText(_ entry: LegendEntry, slots: Int) -> (styled: String, width: Int) {
-            var wiring = ""
-            for c in 0..<slots {
-                if c == entry.slot {
-                    wiring += "\u{250C}"
-                } else if c < entry.slot {
-                    wiring += "\u{2502}"
-                } else {
-                    wiring += "\u{2500}"
-                }
-            }
-            wiring += "\u{2500}"
-            let symbol = entry.isStar ? "\u{2605}" : "\u{25CF}"
-            let countStr = "(\(entry.count))"
-            let text = styled(wiring, .dim) + " " + styled(symbol, entry.color) + " " + styled(entry.label, entry.color) + " " + styled(countStr, .dim)
-            let width = slots + 1 + 1 + 1 + 1 + entry.label.count + 1 + countStr.count
-            return (text, width)
-        }
-
-        let originPipes = styled(String(repeating: "\u{2502}", count: originSlots), .dim)
-        let localPipes = styled(String(repeating: "\u{2502}", count: localSlots), .dim)
-        let statusPipes = styled(String(repeating: "\u{2502}", count: statusSlots), .dim)
-
-        // Entry lines — the longest group determines row count
-        let entryCount = max(originEntries.count, max(localEntries.count, statusEntries.count))
-        for i in 0..<entryCount {
-            let left: String
-            let leftWidth: Int
-            if i < originEntries.count {
-                let entry = entryText(originEntries[i], slots: originSlots)
-                left = entry.styled
-                leftWidth = entry.width
-            } else {
-                left = originPipes
-                leftWidth = originSlots
-            }
-
-            let gap1 = String(repeating: " ", count: max(1, localOffset - leftWidth))
-
-            let middle: String
-            let middleWidth: Int
-            if i < localEntries.count {
-                let entry = entryText(localEntries[i], slots: localSlots)
-                middle = entry.styled
-                middleWidth = entry.width
-            } else {
-                middle = localPipes
-                middleWidth = localSlots
-            }
-
-            let gap2 = String(repeating: " ", count: max(1, statusOffset - localOffset - middleWidth))
-
-            let right: String
-            if i < statusEntries.count {
-                right = entryText(statusEntries[i], slots: statusSlots).styled
-            } else {
-                right = statusPipes
-            }
-
-            print(left + gap1 + middle + gap2 + right)
-        }
-
-        // Footer line — pipes flowing into header dots
-        let footerGap1 = String(repeating: " ", count: max(1, localOffset - originSlots))
-        let footerGap2 = String(repeating: " ", count: max(1, statusOffset - localOffset - localSlots))
-        print(originPipes + footerGap1 + localPipes + footerGap2 + statusPipes)
     }
 
     private var hasAnyFilter: Bool {
@@ -303,7 +191,7 @@ struct Status: ParsableCommand {
         let repoCount = discoveredPaths.count
 
         let emptyGit = GitHelpers.GitInfo(remoteURL: nil, branch: "", status: "", ahead: 0, behind: 0, lastCommitTime: "")
-        var partials = Array(repeating: PartialInfo(relativePath: "", fullPath: "", git: emptyGit, saddled: false, hookHealth: .noHook), count: repoCount)
+        var partials = Array(repeating: PartialInfo(relativePath: "", fullPath: "", git: emptyGit, saddled: false, hasHook: false), count: repoCount)
 
         partials.withUnsafeMutableBufferPointer { buf in
             nonisolated(unsafe) let buffer = buf
@@ -313,20 +201,9 @@ struct Status: ParsableCommand {
                 let git = GitHelpers.info(at: repoPath)
                 let normalized = git.remoteURL.map { URLHelpers.normalize($0) }
                 let saddled = normalized.map { normalizedDeclared.contains($0) } ?? false
+                let hasHook = git.remoteURL.map { HookResolver.hasHook(for: $0) } ?? false
 
-                let hookHealth: HookHealth
-                if let url = git.remoteURL, HookResolver.hasHook(for: url) {
-                    if let checkResolution = HookResolver.resolve(for: url, lifecycle: .check) {
-                        let (_, exitCode) = Exec.run(checkResolution.scriptPath, args: [], cwd: repoPath)
-                        hookHealth = exitCode == 0 ? .healthy : .unhealthy
-                    } else {
-                        hookHealth = .healthy
-                    }
-                } else {
-                    hookHealth = .noHook
-                }
-
-                buffer[i] = PartialInfo(relativePath: relativePath, fullPath: repoPath, git: git, saddled: saddled, hookHealth: hookHealth)
+                buffer[i] = PartialInfo(relativePath: relativePath, fullPath: repoPath, git: git, saddled: saddled, hasHook: hasHook)
             }
         }
 
@@ -374,7 +251,7 @@ struct Status: ParsableCommand {
                 ahead: p.git.ahead,
                 behind: p.git.behind,
                 saddled: p.saddled,
-                hookHealth: p.hookHealth,
+                hasHook: p.hasHook,
                 isStarred: isStarred,
                 remoteOnly: false
             )
@@ -416,7 +293,7 @@ struct Status: ParsableCommand {
                 ahead: 0,
                 behind: 0,
                 saddled: normalizedDeclared.contains(normalizedURL),
-                hookHealth: .noHook,
+                hasHook: false,
                 isStarred: forgeResult.starredURLs.contains(normalizedURL),
                 remoteOnly: true
             ))
@@ -445,7 +322,7 @@ struct Status: ParsableCommand {
                 ahead: 0,
                 behind: 0,
                 saddled: true,
-                hookHealth: .noHook,
+                hasHook: false,
                 isStarred: forgeResult.starredURLs.contains(normalizedURL),
                 remoteOnly: true
             ))
@@ -456,48 +333,31 @@ struct Status: ParsableCommand {
 
     // MARK: - Display
 
-    private static let colPadding = 2
-    private static let minDescLen = 10
-
-    private static var terminalWidth: Int {
-        var w = winsize()
-        if ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0, w.ws_col > 0 {
-            return Int(w.ws_col)
-        }
-        return 120
-    }
-
-    private static let originDotWidth = 5  // 3 dots + 2 space separator
-    private static let localDotWidth = 4   // 3 dots + 1 space separator
-    private static let statusDotWidth = 4  // 3 dots + 1 space separator
-
     private func printReposSection(_ repos: [RepoInfo], forge: ForgeResult, mountDir: String, showLegend: Bool) {
-        let p = Self.colPadding
-        let termWidth = Self.terminalWidth
-        let fixedDots = Self.originDotWidth + Self.localDotWidth + Self.statusDotWidth
-
+        let termWidth = terminalWidth()
         let mountLabel = FS.shortenPath(mountDir)
-        let localPathHeaderWidth = "Local Path (\(mountLabel))".count
-        let headValues = repos.map { $0.remoteURL ?? "no origin" }
-        let pathValues = repos.map { $0.remoteOnly ? "" : $0.relativePath }
-        let idealHead = max("Origin".count, headValues.map { $0.count }.max() ?? 0) + p
-        let idealPath = max(localPathHeaderWidth, pathValues.map { $0.count }.max() ?? 0) + p
-        let colUpdated = max("Last Commit".count, 14) + p
 
-        let budget = termWidth - fixedDots - colUpdated - Self.minDescLen
-        let colHead: Int
-        let colPath: Int
-        if idealHead + idealPath <= budget {
-            colHead = idealHead
-            colPath = idealPath
-        } else {
-            let total = idealHead + idealPath
-            colHead = max("Origin".count + p, idealHead * budget / total)
-            colPath = max(localPathHeaderWidth + p, budget - colHead)
-        }
-
-        let fixedWidth = fixedDots + colHead + colPath + colUpdated
-        let descWidth = max(Self.minDescLen, termWidth - fixedWidth)
+        let table = TrafficLightTable(segments: [
+            .indicators([
+                Indicator("in manifest", color: .custom(RGB(hex: "4A9EC2").fg)),
+                Indicator("not in manifest", color: .custom(RGB(hex: "C85A6A").fg)),
+                Indicator("hooked", color: .custom(RGB(hex: "E070A0").fg)),
+            ]),
+            .column(TextColumn("Local Repository (\(mountLabel))", sizing: .auto())),
+            .indicators([
+                Indicator("private", color: .custom(RGB(hex: "1EA00C").fg)),
+                Indicator("public", color: .custom(RGB(hex: "A855F7").fg)),
+                Indicator("starred", color: .custom(RGB(hex: "FACC15").fg)),
+            ]),
+            .column(TextColumn("Origin", sizing: .auto())),
+            .indicators([
+                Indicator("dirty", color: .custom(RGB(hex: "EF4444").fg)),
+                Indicator("ahead", color: .custom(RGB(hex: "22D3EE").fg)),
+                Indicator("behind", color: .custom(RGB(hex: "F97316").fg)),
+            ]),
+            .column(TextColumn("Last Commit", sizing: .fixed(14))),
+            .column(TextColumn("Description", sizing: .flexible(minWidth: 10))),
+        ])
 
         let sorted = repos.sorted { a, b in
             if (a.remoteURL == nil) != (b.remoteURL == nil) { return b.remoteURL == nil }
@@ -506,125 +366,164 @@ struct Status: ParsableCommand {
             return aOrigin < bOrigin
         }
 
-        if showLegend {
-            printLegend(repos: repos, colHead: colHead, colPath: colPath)
-        } else {
-            print()
-        }
+        let rows = sorted.map { buildRow(repo: $0) }
+        let counts: [[Int]]? = showLegend ? legendCounts(repos: repos) : nil
 
-        // Origin dots: public, archived, starred
-        let originDots = styled("\u{25CF}", .red) + styled("\u{25CF}", .gray) + styled("\u{2605}", .yellow)
-        // Local dots: equipped, hooked, health
-        let localDots = styled("\u{25CF}", .cyan) + styled("\u{25CF}", .magenta) + styled("\u{25CF}", .red)
-        // Status dots: dirty, ahead, behind
-        let statusDots = styled("\u{25CF}", .red) + styled("\u{25CF}", .cyan) + styled("\u{25CF}", .orange)
-
-        let localPathCol = localDots + " " + styled("Local Path", .dim) + " " + styled("(\(mountLabel))", .darkGray)
-            + String(repeating: " ", count: max(0, colPath - localPathHeaderWidth))
-        let header = originDots + styled("  ", .dim)
-            + styled("Origin".padding(toLength: colHead, withPad: " ", startingAt: 0), .dim)
-            + localPathCol
-            + statusDots + " " + styled("Last Commit".padding(toLength: colUpdated, withPad: " ", startingAt: 0), .dim)
-            + styled("Description", .dim)
-        print(header)
-        print(styled("\u{2500}".repeating(termWidth), .dim))
-
-        for repo in sorted {
-            printRepoRow(repo, colHead: colHead, colPath: colPath, colUpdated: colUpdated, colDesc: descWidth)
-        }
+        print(table.render(rows: rows, counts: counts, terminalWidth: termWidth), terminator: "")
     }
 
-    private func printRepoRow(_ repo: RepoInfo, colHead: Int, colPath: Int, colUpdated: Int, colDesc: Int) {
-        let p = Self.colPadding
+    private func buildRow(repo: RepoInfo) -> TrafficLightRow {
+        let originStates: [IndicatorState] = [
+            repo.visibility == "private" ? .on : .off,
+            repo.visibility == "public" ? .on : .off,
+            repo.isStarred ? .on : .off,
+        ]
 
-        // Origin dots: public, archived, starred
-        let o1 = repo.visibility == "public" ? styled("\u{25CF}", .red) : " "
-        let o2 = repo.isArchived ? styled("\u{25CF}", .gray) : " "
-        let o3 = repo.isStarred ? styled("\u{2605}", .yellow) : " "
-        let originPrefix = o1 + o2 + o3 + "  "
+        let isStray = !repo.remoteOnly && !repo.saddled
 
-        // Local dots: equipped, hooked, health
-        let l1 = repo.saddled ? styled("\u{25CF}", .cyan) : " "
-        let l2 = repo.hasHook ? styled("\u{25CF}", .magenta) : " "
-        let l3: String
-        switch repo.hookHealth {
-        case .unhealthy: l3 = styled("\u{25CF}", .red)
-        default:         l3 = " "
-        }
-        let localPrefix = l1 + l2 + l3 + " "
+        let localStates: [IndicatorState] = [
+            repo.saddled ? .on : .off,
+            isStray ? .on : .off,
+            repo.hasHook ? .on : .off,
+        ]
 
-        // Status dots: dirty, ahead, behind
-        let s1 = repo.localStatus == "dirty" ? styled("\u{25CF}", .red) : " "
-        let s2 = repo.ahead > 0 ? styled("\u{25CF}", .cyan) : " "
-        let s3 = repo.behind > 0 ? styled("\u{25CF}", .orange) : " "
-        let statusPrefix = s1 + s2 + s3 + " "
+        let statusStates: [IndicatorState] = [
+            repo.localStatus == "dirty" ? .on : .off,
+            repo.ahead > 0 ? .on : .off,
+            repo.behind > 0 ? .on : .off,
+        ]
 
         let missing = repo.saddled && repo.remoteOnly
-        let stray = !repo.remoteOnly && !repo.saddled
         let dim = repo.remoteOnly || !repo.saddled
 
-        let headRaw = repo.remoteURL ?? "no origin"
-        let headTrunc = truncate(headRaw, to: colHead - p)
-        let headPad = String(repeating: " ", count: max(0, colHead - headTrunc.count))
-        let headCol: String
-        if repo.remoteURL == nil {
-            headCol = styled(headTrunc, .dim, .red) + headPad
-        } else if missing {
-            let name = URLHelpers.repoName(from: headRaw)
-            if let range = headRaw.range(of: name, options: .backwards) {
-                let nameStart = headRaw.distance(from: headRaw.startIndex, to: range.lowerBound)
-                let nameEnd = headRaw.distance(from: headRaw.startIndex, to: range.upperBound)
-                let len = headTrunc.count
-                let before = String(headTrunc.prefix(min(nameStart, len)))
-                let mid = nameStart < len ? String(headTrunc.dropFirst(nameStart).prefix(min(nameEnd, len) - nameStart)) : ""
-                let after = nameEnd < len ? String(headTrunc.dropFirst(nameEnd)) : ""
-                headCol = styled(before, .darkGray) + styled(mid, .orange) + styled(after, .darkGray) + headPad
-            } else {
-                headCol = styled(headTrunc, .orange) + headPad
-            }
-        } else {
-            let name = URLHelpers.repoName(from: headRaw)
-            if let range = headRaw.range(of: name, options: .backwards) {
-                let nameStart = headRaw.distance(from: headRaw.startIndex, to: range.lowerBound)
-                let nameEnd = headRaw.distance(from: headRaw.startIndex, to: range.upperBound)
-                let len = headTrunc.count
-                let before = String(headTrunc.prefix(min(nameStart, len)))
-                let mid = nameStart < len ? String(headTrunc.dropFirst(nameStart).prefix(min(nameEnd, len) - nameStart)) : ""
-                let after = nameEnd < len ? String(headTrunc.dropFirst(nameEnd)) : ""
-                if dim {
-                    headCol = styled(before, .dim) + styled(mid, .dim) + styled(after, .dim) + headPad
-                } else {
-                    headCol = styled(before, .darkGray) + mid + styled(after, .darkGray) + headPad
-                }
-            } else {
-                headCol = (dim ? styled(headTrunc, .dim) : styled(headTrunc, .darkGray)) + headPad
-            }
-        }
-
-        let pathRaw = repo.remoteOnly ? "\u{2014}" : repo.relativePath
-        let pathText = truncate(pathRaw, to: colPath - p).padding(toLength: colPath, withPad: " ", startingAt: 0)
+        let originCol = styleOrigin(repo)
+        let pathCol = stylePath(repo)
 
         let timeStr = repo.lastPushTime
         let timeColor = timeStr.isEmpty ? Color.dim : pushTimeColor(timeStr)
-        let updatedText = truncate(timeStr.isEmpty ? "\u{2014}" : timeStr, to: colUpdated - p).padding(toLength: colUpdated, withPad: " ", startingAt: 0)
+        let timeRaw = timeStr.isEmpty ? "\u{2014}" : timeStr
+        let timeCol = missing ? styled(timeRaw, .dim, .red) : (dim ? styled(timeRaw, .dim, timeColor) : styled(timeRaw, timeColor))
 
-        let descCol: String
-        if !repo.description.isEmpty {
-            let desc = truncate(repo.description, to: colDesc)
-            descCol = styled(desc, .dim, .green)
-        } else {
-            descCol = ""
-        }
+        let descCol = repo.description.isEmpty ? "" : (missing ? styled(repo.description, .dim, .red) : styled(repo.description, .dim, .green))
 
-        let pathCol = stray ? styled(pathText, .dim, .yellow) : (dim ? styled(pathText, .dim) : styled(pathText, .darkGray))
-        let timeCol = dim ? styled(updatedText, .dim, timeColor) : styled(updatedText, timeColor)
-        print("\(originPrefix)\(headCol)\(localPrefix)\(pathCol)\(statusPrefix)\(timeCol)\(descCol)")
+        return TrafficLightRow(
+            indicators: [localStates, originStates, statusStates],
+            values: [pathCol, originCol, timeCol, descCol]
+        )
     }
 
-    private func truncate(_ text: String, to maxLen: Int) -> String {
-        guard maxLen > 0 else { return "" }
-        if text.count <= maxLen { return text }
-        return String(text.prefix(maxLen - 1)) + "\u{2026}"
+    /// Collect the active indicator colors for a local repo's state.
+    private func indicatorColors(repo: RepoInfo) -> [(r: Int, g: Int, b: Int)] {
+        let isStray = !repo.remoteOnly && !repo.saddled
+        var colors: [(r: Int, g: Int, b: Int)] = []
+        if repo.saddled { colors.append((74, 158, 194)) }    // in manifest
+        if isStray      { colors.append((200, 90, 106)) }   // not in manifest
+        if repo.hasHook { colors.append((224, 112, 160)) }  // hooked
+        return colors
+    }
+
+    private func originIndicatorColors(repo: RepoInfo) -> [(r: Int, g: Int, b: Int)] {
+        var colors: [(r: Int, g: Int, b: Int)] = []
+        if repo.visibility == "private" { colors.append((30, 160, 12)) }    // private green
+        if repo.visibility == "public"  { colors.append((168, 85, 247)) }   // public purple
+        if repo.isStarred               { colors.append((250, 204, 21)) }   // starred yellow
+        return colors
+    }
+
+    private func styleOrigin(_ repo: RepoInfo) -> String {
+        let headRaw = repo.remoteURL ?? "no origin"
+        if repo.remoteURL == nil {
+            return styled(headRaw, .dim, .red)
+        }
+
+        let missing = repo.saddled && repo.remoteOnly
+
+        let name = URLHelpers.repoName(from: headRaw)
+        guard let range = headRaw.range(of: name, options: .backwards) else {
+            if missing { return styled(headRaw, .dim, .red) }
+            return styled(headRaw, .darkGray)
+        }
+
+        let before = String(headRaw[headRaw.startIndex..<range.lowerBound])
+        let mid = String(headRaw[range])
+        let after = String(headRaw[range.upperBound...])
+
+        if missing {
+            return styled(before, .dim, .red) + styled(mid, .dim, .red) + styled(after, .dim, .red)
+        }
+
+        let colors = originIndicatorColors(repo: repo)
+        let styledMid = colors.isEmpty
+            ? styled(mid, .darkGray)
+            : gradientString(mid, colors: colors)
+        return styled(before, .darkGray) + styledMid + styled(after, .darkGray)
+    }
+
+    private func stylePath(_ repo: RepoInfo) -> String {
+        if repo.remoteOnly {
+            let missing = repo.saddled
+            return missing ? styled("\u{2014}", .dim, .red) : styled("\u{2014}", .dim)
+        }
+
+        let pathRaw = repo.relativePath
+        let colors = indicatorColors(repo: repo)
+
+        let lastSlash = pathRaw.lastIndex(of: "/")
+        let (before, name) = lastSlash.map { slash in
+            (String(pathRaw[pathRaw.startIndex...slash]), String(pathRaw[pathRaw.index(after: slash)...]))
+        } ?? ("", pathRaw)
+
+        if colors.isEmpty {
+            return styled(before, .dim) + styled(name, .dim)
+        }
+
+        return styled(before, .darkGray) + gradientString(name, colors: colors)
+    }
+
+    private func gradientString(_ text: String, colors: [(r: Int, g: Int, b: Int)]) -> String {
+        let chars = Array(text)
+        guard chars.count > 1, colors.count > 1 else {
+            let c = colors[0]
+            return "\u{1B}[38;2;\(c.r);\(c.g);\(c.b)m\(text)\(Color.reset.rawValue)"
+        }
+
+        var result = ""
+        let lastIndex = chars.count - 1
+        for (i, ch) in chars.enumerated() {
+            let t = Double(i) / Double(lastIndex)
+            let scaled = t * Double(colors.count - 1)
+            let seg = min(Int(scaled), colors.count - 2)
+            let segT = scaled - Double(seg)
+
+            let from = colors[seg]
+            let to = colors[seg + 1]
+            let r = Int(Double(from.r) + (Double(to.r) - Double(from.r)) * segT)
+            let g = Int(Double(from.g) + (Double(to.g) - Double(from.g)) * segT)
+            let b = Int(Double(from.b) + (Double(to.b) - Double(from.b)) * segT)
+            result += "\u{1B}[38;2;\(r);\(g);\(b)m\(ch)"
+        }
+        result += Color.reset.rawValue
+        return result
+    }
+
+    private func legendCounts(repos: [RepoInfo]) -> [[Int]] {
+        [
+            [
+                repos.filter(\.saddled).count,
+                repos.filter { !$0.remoteOnly && !$0.saddled }.count,
+                repos.filter(\.hasHook).count,
+            ],
+            [
+                repos.filter { $0.visibility == "private" }.count,
+                repos.filter { $0.visibility == "public" }.count,
+                repos.filter(\.isStarred).count,
+            ],
+            [
+                repos.filter { $0.localStatus == "dirty" }.count,
+                repos.filter { $0.ahead > 0 }.count,
+                repos.filter { $0.behind > 0 }.count,
+            ],
+        ]
     }
 
     static func relativeTime(from iso8601: String) -> String {

@@ -57,6 +57,20 @@ enum URLHelpers {
         return "git@\(parts[0]):\(parts[1]).git"
     }
 
+    /// Convert a normalized URL to a cloneable HTTPS URL.
+    /// github.com/user/repo -> https://github.com/user/repo.git
+    static func httpsURL(from normalized: String) -> String {
+        return "https://\(normalized).git"
+    }
+
+    /// Convert a normalized URL to a cloneable URL using the given protocol.
+    static func cloneURL(from normalized: String, protocol proto: Manifest.CloneProtocol) -> String {
+        switch proto {
+        case .ssh: return sshURL(from: normalized)
+        case .https: return httpsURL(from: normalized)
+        }
+    }
+
     /// Derive a hook name from a URL (owner-repo.sh).
     static func hookName(from url: String) -> String {
         let normalized = normalize(url)

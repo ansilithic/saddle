@@ -22,10 +22,11 @@ struct FS {
     }
 
     static func expandPath(_ path: String) -> String {
-        if path.hasPrefix("~") {
-            return (path as NSString).expandingTildeInPath
+        guard path.hasPrefix("~") else { return path }
+        if let home = ProcessInfo.processInfo.environment["HOME"] {
+            return home + path.dropFirst()
         }
-        return path
+        return (path as NSString).expandingTildeInPath
     }
 
     static func readFile(_ path: String) -> String? {

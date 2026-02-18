@@ -11,7 +11,7 @@ struct Log {
         let path = Config.logFile
         if let handle = FileHandle(forWritingAtPath: path) {
             handle.seekToEndOfFile()
-            handle.write(entry.data(using: .utf8)!)
+            if let data = entry.data(using: .utf8) { handle.write(data) }
             handle.closeFile()
         } else {
             _ = FS.writeFile(path, contents: entry)

@@ -30,9 +30,9 @@ struct Exec {
             return ("", 1)
         }
 
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         task.waitUntilExit()
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         return (output, task.terminationStatus)
@@ -54,9 +54,10 @@ struct Exec {
         task.environment = environment
 
         do { try task.run() } catch { return ("", 1) }
-        task.waitUntilExit()
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+
         let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return (output, task.terminationStatus)
     }

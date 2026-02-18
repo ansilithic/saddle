@@ -7,6 +7,8 @@ struct GitLab: ForgeProvider, Sendable {
     func resolveToken() -> String? {
         let (output, rc) = Exec.run("/usr/bin/env", args: ["glab", "auth", "token"])
         if rc == 0, !output.isEmpty { return output }
+        if let envToken = ProcessInfo.processInfo.environment["GITLAB_TOKEN"],
+           !envToken.isEmpty { return envToken }
         let tokenFile = Config.configDir + "/gitlab-token"
         if let contents = FS.readFile(tokenFile) {
             let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)

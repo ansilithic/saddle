@@ -12,7 +12,7 @@ struct Sync {
         let hookResult: HookResult?
     }
 
-    static func syncDeclaredRepos(_ urls: [String], mount: String) {
+    static func syncDeclaredRepos(_ urls: [String], mount: String, cloneProtocol: Manifest.CloneProtocol = .ssh, runHooks: Bool = true) {
         let devDir = mount
         var results = SyncResult()
         var rows: [RowResult] = []
@@ -57,11 +57,11 @@ struct Sync {
                 print("    \(styled("[\(phaseIdx + 1)/\(missingIndices.count)]", .dim)) \(entry.name)", terminator: "")
                 fflush(stdout)
 
-                let clonePath = "\(devDir)/\(entry.name)"
+                let clonePath = "\(devDir)/\(URLHelpers.pathAfterHost(from: entry.url))"
                 let outcome: SyncOutcome
                 let parent = (clonePath as NSString).deletingLastPathComponent
                 if !FS.isDirectory(parent) { _ = FS.createDirectory(parent) }
-                let cloneURL = URLHelpers.sshURL(from: entry.url)
+                let cloneURL = URLHelpers.cloneURL(from: entry.url, protocol: cloneProtocol)
                 let (_, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, clonePath], env: ["GIT_TERMINAL_PROMPT": "0"])
                 if exitCode == 0 {
                     outcome = .synced
@@ -90,7 +90,7 @@ struct Sync {
         } else {
             for (phaseIdx, entryIdx) in existingIndices.enumerated() {
                 let entry = entries[entryIdx]
-                let existingPath = entry.path!
+                guard let existingPath = entry.path else { continue }
 
                 print("    \(styled("[\(phaseIdx + 1)/\(existingIndices.count)]", .dim)) \(entry.name)", terminator: "")
                 fflush(stdout)
@@ -137,7 +137,9 @@ struct Sync {
         printPhase("Spurring", "running hooks")
 
         var hookResults: [Int: HookResult] = [:]
-        let hookIndices = entries.indices.filter { entries[$0].path != nil && HookResolver.hasHook(for: entries[$0].url) }
+        let hookIndices: [Int] = runHooks
+            ? entries.indices.filter { entries[$0].path != nil && HookResolver.hasHook(for: entries[$0].url) }
+            : []
 
         if hookIndices.isEmpty {
             print("    \(styled("no hooks to run", .dim))")
@@ -155,10 +157,10 @@ struct Sync {
 
                 let resolution = HookResolver.resolve(for: entry.url, lifecycle: lifecycle)
 
-                if let resolution {
+                if let resolution, let repoPath = entry.path {
                     let spinner = BrailleSpinner()
                     spinner.start()
-                    let result = HookResolver.execute(resolution, at: entry.path!)
+                    let result = HookResolver.execute(resolution, at: repoPath)
                     spinner.stop()
 
                     // Reprint prefix since spinner clears the line

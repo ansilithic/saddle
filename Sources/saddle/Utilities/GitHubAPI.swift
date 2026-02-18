@@ -7,6 +7,8 @@ struct GitHub: ForgeProvider, Sendable {
     func resolveToken() -> String? {
         let (output, rc) = Exec.run("/usr/bin/env", args: ["gh", "auth", "token"])
         if rc == 0, !output.isEmpty { return output }
+        if let envToken = ProcessInfo.processInfo.environment["GITHUB_TOKEN"],
+           !envToken.isEmpty { return envToken }
         let tokenFile = Config.configDir + "/github-token"
         if let contents = FS.readFile(tokenFile) {
             let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)
