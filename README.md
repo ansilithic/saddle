@@ -93,7 +93,7 @@ Saddle delegates authentication to the [`gh`](https://cli.github.com/) and [`gla
 
 ## AI agent usage
 
-Saddle pairs with `gh` to give AI agents full local + remote repo visibility. See [`SKILL.md`](SKILL.md) for agent-specific instructions — what commands to run, how to interpret output, and when to use saddle vs gh.
+Where [`gh`](https://cli.github.com/) and [`glab`](https://gitlab.com/gitlab-org/cli) are windows into the remote, saddle is the local layer — what's cloned, what's dirty, what's out of sync. Together they give AI agents full repo visibility across both sides. See [`SKILL.md`](SKILL.md) for agent-specific instructions.
 
 ## License
 
