@@ -1,8 +1,15 @@
 # saddle
 
-A personal package manager for your repos.
+![saddle status](assets/status.png)
 
-You build CLI tools, dotfiles, scripts, configs. They live in git repos scattered across GitHub. Saddle tracks them all in one manifest, clones what's missing, pulls what's behind, and runs install hooks — so any machine is one command away from your full environment.
+A private package manager designed to facilitate rapid development and distribution for humans and agents, built directly on top of git and designed exclusively for macOS.
+
+Enables key insights at a glance:
+- How many repos do I have set up right now?
+- Are there any uncommited changes anywhere?
+- Which ones are public?
+
+Also enables one-liner setup for any new machine via manifest list and hook scripts. The manifest declares which repos should be cloned locally and keeps them up to date. The script hooks define how the code in these repos should be installed locally, if at all. One command to do it all:
 
 ```sh
 saddle up
@@ -10,15 +17,23 @@ saddle up
 
 ## Install
 
+### Homebrew
+
+```sh
+brew install ansilithic/tap/saddle
+```
+
+### From source
+
 ```sh
 git clone https://github.com/ansilithic/saddle.git
 cd saddle
 make build && make install
 ```
 
-Requires macOS 14+ and Swift 6.0.
+Requires macOS 14+ (Sonoma), Swift 6.0, and the [`gh` CLI](https://cli.github.com/) for GitHub integration.
 
-## Quick start
+## Quick start guide
 
 Add repos to your manifest:
 
@@ -48,128 +63,37 @@ saddle up
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `saddle` | Show status of all repos (default) |
-| `saddle up` | Clone missing repos, pull updates, run hooks |
-| `saddle up --dry-run` | Preview what would happen |
-| `saddle equip [repo]` | Add a repo to the manifest |
-| `saddle unequip [repo]` | Remove a repo from the manifest |
-| `saddle adopt` | Add all untracked local repos to the manifest |
-
-Both `equip` and `unequip` accept a repo URL or detect the repo from the current directory.
-
-### `saddle` (status)
-
-Scans your developer directory and every repo you own on GitHub. Shows branch, visibility, local changes, last commit, starred repos, and whether each repo is tracked in your manifest — all at a glance.
-
-Filter flags: `--public`, `--private`, `--clean`, `--dirty`, `--equipped`, `--unequipped`, `--hooked`, `--unhooked`, `--starred`, `--archived`, `--active`, `--all`, `--owner <name>`.
-
-### `saddle up`
-
-Reads your manifest and syncs:
-
-- **Clones** repos that aren't on disk yet
-- **Pulls** latest changes for clean repos (skips dirty ones)
-- **Runs hooks** after each sync
-
-## Configuration
-
-Config lives at `~/.config/saddle/`.
-
-### Manifest
-
-`manifest.toml` — lists your repos and where to clone them. The format is a minimal TOML subset: key-value pairs and a `[repos]` section of quoted strings. Comments (`#`) and blank lines are supported.
-
-```toml
-mount = "~/Developer"
-
-[repos]
-"github.com/you/dotfiles"
-"github.com/you/scripts"
-"github.com/you/cool-cli"
-```
-
-The `mount` field sets the root directory (defaults to `~/Developer`). Repos are cloned into `owner/repo` subdirectories matching their remote path.
-
-Set `protocol` to control how repos are cloned (defaults to `ssh`):
-
-```toml
-protocol = "https"
-```
-
-SSH requires keys configured with your git host. HTTPS works with credential helpers or token-based auth.
+![saddle help](assets/help.png)
 
 ### Hooks
 
-`hooks/` — executable scripts that run during sync and lifecycle events. The script's working directory is the repo itself.
+Optional per-repo scripts that run during sync. The script's working directory is the repo itself, wherever it may be.
 
-Two formats are supported:
-
-**Directory format** (recommended) — separate scripts per lifecycle phase:
+**Directory format** (recommended):
 
 ```
 ~/.config/saddle/hooks/you-dotfiles/
-  install.sh     # runs on first clone
-  update.sh      # runs on subsequent syncs (falls back to install.sh if missing)
-  uninstall.sh   # runs during saddle unequip
-  check.sh       # runs during saddle status (exit 0 = healthy)
+  install.sh     # first clone
+  update.sh      # subsequent syncs (falls back to install.sh)
+  uninstall.sh   # saddle unequip
+  check.sh       # saddle status (exit 0 = healthy)
 ```
 
-**Legacy format** — a single script for install and update:
+**Single-file format:**
 
 ```
 ~/.config/saddle/hooks/you-dotfiles.sh
 ```
 
-All hook scripts must be executable (`chmod +x`). Hook names are derived from the repo URL: `github.com/you/dotfiles` becomes `you-dotfiles`.
+Hook names are derived from the repo URL: `github.com/you/dotfiles` becomes `you-dotfiles`. All scripts must be executable. Output is logged to `~/.local/state/saddle/hooks/`.
 
-Hooks are how repos install themselves — symlink configs, compile binaries, run setup scripts. Output is logged to `~/.local/state/saddle/hooks/`.
+## GitHub and GitLab Integration
 
-### State
+Saddle delegates authentication to the [`gh`](https://cli.github.com/) and [`glab`](https://gitlab.com/gitlab-org/cli) CLIs. If the user is authenticated to these tools, saddle will show repo visibility, list all remote repos, and display any starred repos too.
 
-State lives at `~/.local/state/saddle/`.
+## AI agent usage
 
-| File | Purpose |
-|------|---------|
-| `state.json` | Last run timestamp |
-| `saddle.log` | Error log |
-| `hooks/` | Per-hook output logs |
-
-## GitHub integration
-
-With a GitHub token, saddle shows repo visibility, discovers remote repos not cloned locally, and displays your starred repos. Token is resolved from:
-
-1. `gh auth token` (if `gh` CLI is installed)
-2. `GITHUB_TOKEN` environment variable
-3. `~/.config/saddle/github-token` file
-
-GitLab is also supported. Token is resolved from:
-
-1. `glab auth token` (if `glab` CLI is installed)
-2. `GITLAB_TOKEN` environment variable
-3. `~/.config/saddle/gitlab-token` file
-
-Token files should be readable only by you (`chmod 600`). The CLI-based methods (`gh auth token`, `glab auth token`) are preferred as they use the system keychain.
-
-Without a token, everything still works — visibility just shows `—`.
-
-## Shell completions
-
-Zsh completions are installed automatically with `make install`. For bash or fish:
-
-```sh
-# Bash
-saddle --generate-completion-script bash > ~/.local/share/bash-completion/completions/saddle
-
-# Fish
-saddle --generate-completion-script fish > ~/.config/fish/completions/saddle.fish
-```
-
-## Requirements
-
-- macOS 14+ (Sonoma)
-- Swift 6.0
+Saddle pairs with `gh` to give AI agents full local + remote repo visibility. See [`SKILL.md`](SKILL.md) for agent-specific instructions — what commands to run, how to interpret output, and when to use saddle vs gh.
 
 ## License
 

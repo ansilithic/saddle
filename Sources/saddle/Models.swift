@@ -40,7 +40,7 @@ struct SyncResult {
     var total: Int { synced + unchanged + skipped + failed }
 }
 
-struct RemoteRepoInfo {
+struct RemoteRepoInfo: Codable {
     let visibility: String
     let role: String
     let defaultBranch: String

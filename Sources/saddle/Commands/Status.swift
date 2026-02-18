@@ -341,7 +341,7 @@ struct Status: ParsableCommand {
             .indicators([
                 Indicator("in manifest", color: .custom(RGB(hex: "4A9EC2").fg)),
                 Indicator("not in manifest", color: .custom(RGB(hex: "C85A6A").fg)),
-                Indicator("hooked", color: .custom(RGB(hex: "E070A0").fg)),
+                Indicator("hooked", color: .custom(RGB(hex: "7B2FBE").fg)),
             ]),
             .column(TextColumn("Local Repository (\(mountLabel))", sizing: .auto())),
             .indicators([
@@ -418,7 +418,7 @@ struct Status: ParsableCommand {
         var colors: [(r: Int, g: Int, b: Int)] = []
         if repo.saddled { colors.append((74, 158, 194)) }    // in manifest
         if isStray      { colors.append((200, 90, 106)) }   // not in manifest
-        if repo.hasHook { colors.append((224, 112, 160)) }  // hooked
+        if repo.hasHook { colors.append((123, 47, 190)) }   // hooked
         return colors
     }
 
@@ -455,7 +455,7 @@ struct Status: ParsableCommand {
         let colors = originIndicatorColors(repo: repo)
         let styledMid = colors.isEmpty
             ? styled(mid, .darkGray)
-            : gradientString(mid, colors: colors)
+            : blendedString(mid, colors: colors)
         return styled(before, .darkGray) + styledMid + styled(after, .darkGray)
     }
 
@@ -466,44 +466,21 @@ struct Status: ParsableCommand {
         }
 
         let pathRaw = repo.relativePath
-        let colors = indicatorColors(repo: repo)
 
         let lastSlash = pathRaw.lastIndex(of: "/")
         let (before, name) = lastSlash.map { slash in
             (String(pathRaw[pathRaw.startIndex...slash]), String(pathRaw[pathRaw.index(after: slash)...]))
         } ?? ("", pathRaw)
 
-        if colors.isEmpty {
-            return styled(before, .dim) + styled(name, .dim)
-        }
-
-        return styled(before, .darkGray) + gradientString(name, colors: colors)
+        return styled(before, .darkGray) + styled(name, .custom(RGB(hex: "39FF14").fg))
     }
 
-    private func gradientString(_ text: String, colors: [(r: Int, g: Int, b: Int)]) -> String {
-        let chars = Array(text)
-        guard chars.count > 1, colors.count > 1 else {
-            let c = colors[0]
-            return "\u{1B}[38;2;\(c.r);\(c.g);\(c.b)m\(text)\(Color.reset.rawValue)"
-        }
-
-        var result = ""
-        let lastIndex = chars.count - 1
-        for (i, ch) in chars.enumerated() {
-            let t = Double(i) / Double(lastIndex)
-            let scaled = t * Double(colors.count - 1)
-            let seg = min(Int(scaled), colors.count - 2)
-            let segT = scaled - Double(seg)
-
-            let from = colors[seg]
-            let to = colors[seg + 1]
-            let r = Int(Double(from.r) + (Double(to.r) - Double(from.r)) * segT)
-            let g = Int(Double(from.g) + (Double(to.g) - Double(from.g)) * segT)
-            let b = Int(Double(from.b) + (Double(to.b) - Double(from.b)) * segT)
-            result += "\u{1B}[38;2;\(r);\(g);\(b)m\(ch)"
-        }
-        result += Color.reset.rawValue
-        return result
+    private func blendedString(_ text: String, colors: [(r: Int, g: Int, b: Int)]) -> String {
+        guard !colors.isEmpty else { return text }
+        let r = colors.map(\.r).reduce(0, +) / colors.count
+        let g = colors.map(\.g).reduce(0, +) / colors.count
+        let b = colors.map(\.b).reduce(0, +) / colors.count
+        return "\u{1B}[38;2;\(r);\(g);\(b)m\(text)\(Color.reset.rawValue)"
     }
 
     private func legendCounts(repos: [RepoInfo]) -> [[Int]] {

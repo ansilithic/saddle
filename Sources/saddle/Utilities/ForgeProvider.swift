@@ -19,6 +19,8 @@ enum Forge {
     static let providers: [any ForgeProvider] = [GitHub(), GitLab()]
 
     static func fetchAllRepos() -> ForgeResult {
+        if let mockResult = loadMock() { return mockResult }
+
         var results = Array(repeating: ForgeResult(), count: providers.count)
         results.withUnsafeMutableBufferPointer { buf in
             nonisolated(unsafe) let buffer = buf
@@ -42,4 +44,24 @@ enum Forge {
         }
         return merged
     }
+
+    private static func loadMock() -> ForgeResult? {
+        guard let path = ProcessInfo.processInfo.environment["SADDLE_FORGE_MOCK"],
+              !path.isEmpty,
+              let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let mock = try? JSONDecoder().decode(MockForge.self, from: data)
+        else { return nil }
+
+        var result = ForgeResult()
+        result.repos = mock.repos
+        result.starredURLs = Set(mock.starred)
+        result.authenticatedUser = mock.user
+        return result
+    }
+}
+
+private struct MockForge: Decodable {
+    let repos: [String: RemoteRepoInfo]
+    let starred: [String]
+    let user: String?
 }

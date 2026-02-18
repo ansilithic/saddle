@@ -127,6 +127,59 @@ EOF
   printf '#!/bin/sh\nexit 1\n' > "$DEMO_HOME/bin/glab"
   chmod +x "$DEMO_HOME/bin/gh" "$DEMO_HOME/bin/glab"
 
+  # Mock forge data so demo shows visibility/starred indicators
+  cat > "$CONFIG_DIR/forge-mock.json" << 'MOCK'
+{
+  "repos": {
+    "github.com/acmecraft/web-app": {
+      "visibility": "private", "role": "owned", "defaultBranch": "main",
+      "pushedAt": "", "language": "TypeScript",
+      "description": "Customer-facing web application", "stargazers": 12, "isArchived": false
+    },
+    "github.com/acmecraft/api-server": {
+      "visibility": "private", "role": "owned", "defaultBranch": "main",
+      "pushedAt": "", "language": "Go",
+      "description": "REST API backend", "stargazers": 8, "isArchived": false
+    },
+    "github.com/acmecraft/deploy-tools": {
+      "visibility": "private", "role": "owned", "defaultBranch": "main",
+      "pushedAt": "", "language": "Shell",
+      "description": "CI/CD pipeline utilities", "stargazers": 3, "isArchived": false
+    },
+    "github.com/acmecraft/design-system": {
+      "visibility": "public", "role": "owned", "defaultBranch": "main",
+      "pushedAt": "", "language": "CSS",
+      "description": "Shared component library", "stargazers": 47, "isArchived": false
+    },
+    "github.com/acmecraft/mobile-app": {
+      "visibility": "private", "role": "owned", "defaultBranch": "main",
+      "pushedAt": "", "language": "Swift",
+      "description": "iOS companion app", "stargazers": 5, "isArchived": false
+    },
+    "github.com/jdoe/dotfiles": {
+      "visibility": "public", "role": "owned", "defaultBranch": "main",
+      "pushedAt": "", "language": "Shell",
+      "description": "Personal dotfiles and configs", "stargazers": 2, "isArchived": false
+    },
+    "github.com/jdoe/nvim-config": {
+      "visibility": "public", "role": "owned", "defaultBranch": "main",
+      "pushedAt": "", "language": "Lua",
+      "description": "Neovim configuration", "stargazers": 15, "isArchived": false
+    },
+    "github.com/jdoe/scratch": {
+      "visibility": "private", "role": "owned", "defaultBranch": "main",
+      "pushedAt": "", "language": "",
+      "description": "", "stargazers": 0, "isArchived": false
+    }
+  },
+  "starred": [
+    "github.com/acmecraft/design-system",
+    "github.com/jdoe/nvim-config"
+  ],
+  "user": "jdoe"
+}
+MOCK
+
   echo "Demo environment ready at $DEMO_HOME"
 }
 
@@ -139,6 +192,7 @@ run_saddle() {
   HOME="$DEMO_HOME" \
   GITHUB_TOKEN="" \
   GITLAB_TOKEN="" \
+  SADDLE_FORGE_MOCK="$CONFIG_DIR/forge-mock.json" \
     saddle "$@"
 }
 
