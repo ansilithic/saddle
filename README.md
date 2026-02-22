@@ -26,7 +26,7 @@ cd saddle
 make build && make install
 ```
 
-Requires macOS 14+ (Sonoma), Swift 6.0, and the [`gh` CLI](https://cli.github.com/) for GitHub integration.
+Requires macOS 14+ (Sonoma), Swift 6.0, and the [gh CLI](https://cli.github.com/) for GitHub integration.
 
 ## Quick start guide
 
@@ -60,14 +60,6 @@ saddle up
 
 ![saddle help](assets/help.png)
 
-Status filters compose — find exactly what you need:
-
-```sh
-saddle --dirty                     # uncommitted changes anywhere
-saddle --stray                     # cloned but not in the manifest
-saddle --owner acmecraft --public  # filters combine
-```
-
 ### Hooks
 
 Optional per-repo scripts that run during sync. The script's working directory is the repo itself, wherever it may be.
@@ -91,11 +83,11 @@ Hook names are derived from the repo URL: `github.com/you/dotfiles` becomes `you
 
 ## GitHub and GitLab Integration
 
-Saddle delegates authentication to the [`gh`](https://cli.github.com/) and [`glab`](https://gitlab.com/gitlab-org/cli) CLIs. If the user is authenticated to these tools, saddle will show repo visibility, list all remote repos, and display any starred repos too.
+Saddle delegates authentication to the [gh](https://cli.github.com/) and [glab](https://gitlab.com/gitlab-org/cli) CLIs. If the user is authenticated to these tools, saddle will show repo visibility, list all remote repos, and display any starred repos too.
 
 ## AI agent usage
 
-Where [`gh`](https://cli.github.com/) and [`glab`](https://gitlab.com/gitlab-org/cli) are windows into the remote, saddle is the local layer — what's cloned, what's dirty, what's out of sync. Together they give AI agents full repo visibility across both sides. See [`SKILL.md`](SKILL.md) for agent-specific instructions.
+Where [gh](https://cli.github.com/) and [glab](https://gitlab.com/gitlab-org/cli) are windows into the remote, saddle is the local layer — what's cloned, what's dirty, what's out of sync. Together they give AI agents full repo visibility across both sides. See [SKILL.md](SKILL.md) for agent-specific instructions.
 
 ## License
 

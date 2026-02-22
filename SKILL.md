@@ -40,7 +40,7 @@ Sync all manifest repos. Clones missing repos, pulls clean repos, runs install h
 
 ```sh
 saddle up               # sync everything
-saddle up --dry-run     # preview without changes
+saddle up --no-hooks    # sync without running hooks
 ```
 
 ### `saddle equip <repo>`
@@ -48,7 +48,7 @@ saddle up --dry-run     # preview without changes
 Add a repo to the manifest. If a URL is provided, clones it. If run inside a repo directory, adds the current repo.
 
 ```sh
-saddle equip https://github.com/org/repo.git
+saddle equip https://github.com/org/repo
 saddle equip            # adds current directory's repo
 ```
 
