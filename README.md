@@ -1,14 +1,18 @@
 # saddle
 
-![saddle status](assets/status.png)
+![saddle info](assets/info.png)
 
-A repo manager for macOS — track, organize, and sync every git repository locally.
+Repo wrangler for macOS — track, organize, and sync every git repository locally.
 
 ```sh
 saddle up
 ```
 
 One command clones missing repos, pulls updates, and runs install hooks.
+
+### `saddle status`
+
+![saddle status](assets/status.png)
 
 ## Install
 

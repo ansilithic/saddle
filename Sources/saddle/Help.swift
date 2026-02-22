@@ -68,7 +68,7 @@ enum Help {
         let labelWidth = allEntries.map(\.labelWidth).max()! + 3
 
         Swift.print()
-        Swift.print("  \(styled("saddle", .bold, .white))  \(styled("A repo manager for macOS.", .dim))")
+        Swift.print("  \(styled("saddle", .bold, .white))  \(styled("Repo wrangler for macOS.", .dim))")
         Swift.print()
         Swift.print("  \(styled("Usage", .bold))  \(styled("saddle", .white)) \(styled("<command>", .cyan)) \(styled("[options]", .dim))")
         Swift.print()

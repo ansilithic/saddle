@@ -4,7 +4,7 @@ import CLICore
 @main
 struct Saddle: ParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "A repo manager for macOS.",
+        abstract: "Repo wrangler for macOS.",
         version: "2.0.0",
         subcommands: [Status.self, Up.self, Equip.self, Unequip.self, Info.self, Completions.self],
         defaultSubcommand: Status.self
