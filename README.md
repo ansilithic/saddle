@@ -2,7 +2,7 @@
 
 ![saddle status](assets/status.png)
 
-A repo manager for macOS — track, sync, and set up every git repository across your machines with a single manifest.
+A repo manager for macOS — track, sync, and set up every git repository across multiple machines with a single manifest.
 
 ```sh
 saddle up
@@ -30,12 +30,12 @@ Requires macOS 14+ (Sonoma), Swift 6.0, and the [gh CLI](https://cli.github.com/
 
 ## Quick start guide
 
-Add repos to your manifest:
+Add repos to the manifest:
 
 ```sh
-saddle equip https://github.com/you/dotfiles
-saddle equip https://github.com/you/scripts
-saddle equip https://github.com/you/cool-cli
+saddle equip https://github.com/user/dotfiles
+saddle equip https://github.com/user/scripts
+saddle equip https://github.com/user/cool-cli
 ```
 
 Or create the manifest directly:
@@ -45,9 +45,9 @@ Or create the manifest directly:
 mount = "~/Developer"
 
 [repos]
-"github.com/you/dotfiles"
-"github.com/you/scripts"
-"github.com/you/cool-cli"
+"github.com/user/dotfiles"
+"github.com/user/scripts"
+"github.com/user/cool-cli"
 ```
 
 Sync everything:
@@ -67,7 +67,7 @@ Optional per-repo scripts that run during sync. The script's working directory i
 **Directory format** (recommended):
 
 ```
-~/.config/saddle/hooks/you-dotfiles/
+~/.config/saddle/hooks/user-dotfiles/
   install.sh     # first clone
   update.sh      # subsequent syncs (falls back to install.sh)
   uninstall.sh   # saddle unequip
@@ -76,10 +76,10 @@ Optional per-repo scripts that run during sync. The script's working directory i
 **Single-file format:**
 
 ```
-~/.config/saddle/hooks/you-dotfiles.sh
+~/.config/saddle/hooks/user-dotfiles.sh
 ```
 
-Hook names are derived from the repo URL: `github.com/you/dotfiles` becomes `you-dotfiles`. All scripts must be executable. Output is logged to `~/.local/state/saddle/hooks/`.
+Hook names are derived from the repo URL: `github.com/user/dotfiles` becomes `user-dotfiles`. All scripts must be executable. Output is logged to `~/.local/state/saddle/hooks/`.
 
 ## GitHub and GitLab Integration
 
