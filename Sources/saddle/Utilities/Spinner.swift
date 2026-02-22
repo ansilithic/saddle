@@ -3,7 +3,7 @@ import Foundation
 
 final class BrailleSpinner: @unchecked Sendable {
     private static let frames = ["\u{280B}", "\u{2819}", "\u{2839}", "\u{2838}", "\u{283C}", "\u{2834}", "\u{2826}", "\u{2827}", "\u{2807}", "\u{280F}"]
-    private var running = true
+    private var running = false
     private let done = DispatchSemaphore(value: 0)
     private let label: String?
 
@@ -12,6 +12,7 @@ final class BrailleSpinner: @unchecked Sendable {
     }
 
     func start() {
+        guard isatty(STDOUT_FILENO) != 0 else { return }
         running = true
         let ready = DispatchSemaphore(value: 0)
         Thread.detachNewThread {
@@ -36,6 +37,7 @@ final class BrailleSpinner: @unchecked Sendable {
     }
 
     func stop() {
+        guard running else { return }
         running = false
         done.wait()
     }

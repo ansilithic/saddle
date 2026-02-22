@@ -22,7 +22,6 @@ enum Help {
         Entry(name: "up", args: "", description: "Clone missing repos, pull updates, and run hooks", tag: nil),
         Entry(name: "equip", args: "[<repo>]", description: "Clone, install, and add a repo to the manifest", tag: nil),
         Entry(name: "unequip", args: "[<repo>]", description: "Uninstall and remove a repo from the manifest", tag: nil),
-        Entry(name: "adopt", args: "", description: "Add all stray repos with an origin to the manifest", tag: nil),
         Entry(name: "info", args: "", description: "Show saddle configuration and status", tag: nil),
     ]
 
@@ -65,11 +64,11 @@ enum Help {
     ]
 
     static func print() {
-        let allEntries = commands + [showLegend] + filterGroups.flatMap(\.entries) + options
+        let allEntries = commands + filterGroups.flatMap(\.entries) + options
         let labelWidth = allEntries.map(\.labelWidth).max()! + 3
 
         Swift.print()
-        Swift.print("  \(styled("saddle", .bold, .white))  \(styled("A private distribution layer built on top of git.", .dim))")
+        Swift.print("  \(styled("saddle", .bold, .white))  \(styled("A repo manager for macOS.", .dim))")
         Swift.print()
         Swift.print("  \(styled("Usage", .bold))  \(styled("saddle", .white)) \(styled("<command>", .cyan)) \(styled("[options]", .dim))")
         Swift.print()
@@ -77,8 +76,6 @@ enum Help {
         printFilterSections(labelWidth: labelWidth)
         printSection("Options", options, labelWidth: labelWidth)
     }
-
-    static let showLegend = Entry(name: "--show-legend", args: "", description: "Display the status legend", tag: nil)
 
     private static func styledLabel(_ entry: Entry, paddedTo width: Int) -> String {
         if entry.args.isEmpty {
@@ -89,10 +86,6 @@ enum Help {
 
     private static func printFilterSections(labelWidth: Int) {
         Swift.print("  \(styled("Status Filters", .bold))")
-        Swift.print()
-        let label = styledLabel(showLegend, paddedTo: labelWidth)
-        let desc = styled(showLegend.description, .white)
-        Swift.print("    \(label)\(desc)")
         Swift.print()
         for group in filterGroups {
             Swift.print("    \(styled(group.title, .dim))")

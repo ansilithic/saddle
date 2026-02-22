@@ -2,18 +2,13 @@
 
 ![saddle status](assets/status.png)
 
-A private package manager designed to facilitate rapid development and distribution for humans and agents, built directly on top of git and designed exclusively for macOS.
-
-Enables key insights at a glance:
-- How many repos do I have set up right now?
-- Are there any uncommited changes anywhere?
-- Which ones are public?
-
-Also enables one-liner setup for any new machine via manifest list and hook scripts. The manifest declares which repos should be cloned locally and keeps them up to date. The script hooks define how the code in these repos should be installed locally, if at all. One command to do it all:
+A repo manager for macOS — track, sync, and set up every git repository across your machines with a single manifest.
 
 ```sh
 saddle up
 ```
+
+One command clones missing repos, pulls updates, and runs install hooks.
 
 ## Install
 
@@ -38,9 +33,9 @@ Requires macOS 14+ (Sonoma), Swift 6.0, and the [`gh` CLI](https://cli.github.co
 Add repos to your manifest:
 
 ```sh
-saddle equip https://github.com/you/dotfiles.git
-saddle equip https://github.com/you/scripts.git
-saddle equip https://github.com/you/cool-cli.git
+saddle equip https://github.com/you/dotfiles
+saddle equip https://github.com/you/scripts
+saddle equip https://github.com/you/cool-cli
 ```
 
 Or create the manifest directly:
@@ -65,6 +60,14 @@ saddle up
 
 ![saddle help](assets/help.png)
 
+Status filters compose — find exactly what you need:
+
+```sh
+saddle --dirty                     # uncommitted changes anywhere
+saddle --stray                     # cloned but not in the manifest
+saddle --owner acmecraft --public  # filters combine
+```
+
 ### Hooks
 
 Optional per-repo scripts that run during sync. The script's working directory is the repo itself, wherever it may be.
@@ -76,7 +79,6 @@ Optional per-repo scripts that run during sync. The script's working directory i
   install.sh     # first clone
   update.sh      # subsequent syncs (falls back to install.sh)
   uninstall.sh   # saddle unequip
-  check.sh       # saddle status (exit 0 = healthy)
 ```
 
 **Single-file format:**

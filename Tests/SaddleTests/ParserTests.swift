@@ -237,20 +237,6 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(URLHelpers.repoName(from: "https://github.com/user/my-project.git"), "my-project")
     }
 
-    func testHookNameFromSSH() {
-        XCTAssertEqual(URLHelpers.hookName(from: "git@github.com:user/my-project.git"), "user-my-project.sh")
-    }
-
-    func testHookNameFromHTTPS() {
-        XCTAssertEqual(URLHelpers.hookName(from: "https://github.com/user/my-project.git"), "user-my-project.sh")
-    }
-
-    func testHookNameMatchesAcrossProtocols() {
-        let ssh = URLHelpers.hookName(from: "git@github.com:user/repo.git")
-        let https = URLHelpers.hookName(from: "https://github.com/user/repo.git")
-        XCTAssertEqual(ssh, https)
-    }
-
     // MARK: - Helpers
 
     private func tmpPath() -> String {

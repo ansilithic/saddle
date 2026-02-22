@@ -20,7 +20,7 @@ struct Config {
 
         let title = "s a d d l e"
         let version = Saddle.configuration.version
-        let tagline = "A personal package manager for your repos."
+        let tagline = "A repo manager for macOS."
         let grad = ["\u{2591}\u{2591}\u{2592}\u{2592}\u{2593}\u{2593}\u{2588}\u{2588}", "\u{2588}\u{2588}\u{2593}\u{2593}\u{2592}\u{2592}\u{2591}\u{2591}"]
         let banner = styled(grad[0], .cyan) + styled("  \(title)  ", .bold) + styled(grad[1], .cyan) + "  " + styled("v\(version)", .dim)
 

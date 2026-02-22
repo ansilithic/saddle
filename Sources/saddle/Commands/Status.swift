@@ -52,9 +52,6 @@ struct Status: ParsableCommand {
     @Flag(help: "Show only active (non-archived) repos.")
     var active = false
 
-    @Flag(name: .long, help: "Hide the status legend.")
-    var hideLegend = false
-
     @Option(help: "Show only repos owned by <owner>.")
     var owner: String?
 
@@ -88,7 +85,7 @@ struct Status: ParsableCommand {
         let repos = applyFilters(allRepos)
 
         if !repos.isEmpty {
-            printReposSection(repos, forge: forgeResult, mountDir: devDir, showLegend: !hideLegend)
+            printReposSection(repos, forge: forgeResult, mountDir: devDir)
         } else {
             print()
             print()
@@ -333,7 +330,7 @@ struct Status: ParsableCommand {
 
     // MARK: - Display
 
-    private func printReposSection(_ repos: [RepoInfo], forge: ForgeResult, mountDir: String, showLegend: Bool) {
+    private func printReposSection(_ repos: [RepoInfo], forge: ForgeResult, mountDir: String) {
         let termWidth = terminalWidth()
         let mountLabel = FS.shortenPath(mountDir)
 
@@ -367,7 +364,7 @@ struct Status: ParsableCommand {
         }
 
         let rows = sorted.map { buildRow(repo: $0) }
-        let counts: [[Int]]? = showLegend ? legendCounts(repos: repos) : nil
+        let counts: [[Int]]? = legendCounts(repos: repos)
 
         print(table.render(rows: rows, counts: counts, terminalWidth: termWidth), terminator: "")
     }
@@ -410,16 +407,6 @@ struct Status: ParsableCommand {
             indicators: [localStates, originStates, statusStates],
             values: [pathCol, originCol, timeCol, descCol]
         )
-    }
-
-    /// Collect the active indicator colors for a local repo's state.
-    private func indicatorColors(repo: RepoInfo) -> [(r: Int, g: Int, b: Int)] {
-        let isStray = !repo.remoteOnly && !repo.saddled
-        var colors: [(r: Int, g: Int, b: Int)] = []
-        if repo.saddled { colors.append((74, 158, 194)) }    // in manifest
-        if isStray      { colors.append((200, 90, 106)) }   // not in manifest
-        if repo.hasHook { colors.append((123, 47, 190)) }   // hooked
-        return colors
     }
 
     private func originIndicatorColors(repo: RepoInfo) -> [(r: Int, g: Int, b: Int)] {

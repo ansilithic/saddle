@@ -40,7 +40,7 @@ struct Completions: ParsableCommand {
         // Status subcommand — all filters
         lines.append("        status)")
         lines.append("            _arguments \\")
-        var allFilters: [Help.Entry] = [Help.showLegend]
+        var allFilters: [Help.Entry] = []
         for group in Help.filterGroups {
             allFilters.append(contentsOf: group.entries)
         }

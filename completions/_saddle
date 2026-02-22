@@ -17,7 +17,6 @@ _saddle() {
             'up:Clone missing repos, pull updates, and run hooks'
             'equip:Clone, install, and add a repo to the manifest'
             'unequip:Uninstall and remove a repo from the manifest'
-            'adopt:Add all stray repos with an origin to the manifest'
             'info:Show saddle configuration and status'
         )
         _describe 'command' commands
@@ -26,7 +25,6 @@ _saddle() {
         case "$words[1]" in
         status)
             _arguments \
-                '--show-legend[Display the status legend]' \
                 '--all[All repos, including archived]' \
                 '--local[Cloned to disk (equipped + stray)]' \
                 '--equipped[In the manifest]' \
