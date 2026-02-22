@@ -2,7 +2,7 @@
 
 ![saddle status](assets/status.png)
 
-A repo manager for macOS — track, sync, and set up every git repository across multiple machines with a single manifest.
+A repo manager for macOS — track, organize, and sync every git repository locally.
 
 ```sh
 saddle up
