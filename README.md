@@ -48,7 +48,7 @@ Then sync everything with `saddle up`
 
 ## Commands
 
-![saddle --help](assets/help.png)
+<img src="assets/help.png" width="500">
 
 ### Hooks
 

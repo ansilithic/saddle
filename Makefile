@@ -8,7 +8,7 @@ RESET := \033[0m
 
 # Config
 BIN_DIR := $(HOME)/.local/bin
-COMPLETIONS_DIR := $(HOME)/.local/share/zsh/completions
+COMPLETIONS_DIR := /usr/local/share/zsh/site-functions
 BINARY := saddle
 
 .DEFAULT_GOAL := help
@@ -97,8 +97,15 @@ completions:
 	fi
 	@mkdir -p completions
 	@.build/release/$(BINARY) completions > completions/_$(BINARY)
-	@mkdir -p $(COMPLETIONS_DIR)
-	@cp completions/_$(BINARY) $(COMPLETIONS_DIR)/_$(BINARY)
+	@if [ ! -d $(COMPLETIONS_DIR) ]; then \
+		echo "Creating $(COMPLETIONS_DIR) (requires sudo)..."; \
+		sudo mkdir -p $(COMPLETIONS_DIR); \
+	fi
+	@if [ -w $(COMPLETIONS_DIR) ]; then \
+		cp completions/_$(BINARY) $(COMPLETIONS_DIR)/_$(BINARY); \
+	else \
+		sudo cp completions/_$(BINARY) $(COMPLETIONS_DIR)/_$(BINARY); \
+	fi
 	@echo "$(GREEN)Completions installed to $(COMPLETIONS_DIR)$(RESET)"
 
 # ============================================================
