@@ -17,6 +17,9 @@ struct Up: ParsableCommand {
             throw ExitCode.failure
         }
 
+        print()
+        print("  \(styled("Reading manifest\u{2026}", .bold))  \(styled(FS.shortenPath(path), .dim))")
+
         guard let manifest = Parser.parseOrNil(at: path) else {
             throw ExitCode.failure
         }
@@ -26,7 +29,7 @@ struct Up: ParsableCommand {
             return
         }
 
-        Config.printBanner(manifestPath: path, mountDir: manifest.mount)
+        print("  \(styled("\(manifest.repos.count) repos declared, mount at \(FS.shortenPath(manifest.mount))", .dim))")
 
         Sync.syncDeclaredRepos(manifest.repos, mount: manifest.mount, cloneProtocol: manifest.cloneProtocol, runHooks: !noHooks)
 

@@ -12,7 +12,7 @@ COMPLETIONS_DIR := $(HOME)/.local/share/zsh/completions
 BINARY := saddle
 
 .DEFAULT_GOAL := help
-.PHONY: build install uninstall clean rebuild test demo completions help
+.PHONY: build install uninstall health clean rebuild test demo completions help
 
 # ============================================================
 # Build
@@ -46,6 +46,17 @@ uninstall:
 		echo "$(GREEN)Uninstalled!$(RESET)"; \
 	else \
 		echo "$(YELLOW)$(BINARY) not found in $(BIN_DIR).$(RESET)"; \
+	fi
+
+# ============================================================
+# Health
+# ============================================================
+health:
+	@if [ -x $(BIN_DIR)/$(BINARY) ]; then \
+		echo "$(GREEN)$(BINARY) installed$(RESET)"; \
+	else \
+		echo "$(YELLOW)$(BINARY) not installed$(RESET)"; \
+		exit 1; \
 	fi
 
 # ============================================================
@@ -102,6 +113,7 @@ help:
 	@echo "  $(CYAN)install$(RESET)      $(GRAY)-$(RESET) $(GREEN)Copy binary to ~/.local/bin$(RESET)"
 	@echo "  $(CYAN)rebuild$(RESET)      $(GRAY)-$(RESET) $(GREEN)Clean, build, and install$(RESET)"
 	@echo "  $(CYAN)uninstall$(RESET)    $(GRAY)-$(RESET) $(GREEN)Remove binary from ~/.local/bin$(RESET)"
+	@echo "  $(CYAN)health$(RESET)    $(GRAY)-$(RESET) $(GREEN)Check if binary is installed$(RESET)"
 	@echo "  $(CYAN)demo$(RESET)         $(GRAY)-$(RESET) $(GREEN)Run with fake data for screenshots$(RESET)"
 	@echo "  $(CYAN)test$(RESET)         $(GRAY)-$(RESET) $(GREEN)Run tests$(RESET)"
 	@echo "  $(CYAN)completions$(RESET)  $(GRAY)-$(RESET) $(GREEN)Generate zsh completions$(RESET)"

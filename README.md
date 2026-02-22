@@ -1,28 +1,18 @@
 # saddle
 
-![saddle info](assets/info.png)
-
 Repo wrangler for macOS — track, organize, and sync every git repository locally.
 
-```sh
-saddle up
-```
+`saddle` shows the state of every repo. `saddle up` clones missing repos, pulls updates, and runs install hooks.
 
-One command clones missing repos, pulls updates, and runs install hooks.
-
-### `saddle status`
-
-![saddle status](assets/status.png)
+![saddle](assets/status.png)
 
 ## Install
-
-### Homebrew
 
 ```sh
 brew install ansilithic/tap/saddle
 ```
 
-### From source
+Or from source:
 
 ```sh
 git clone https://github.com/ansilithic/saddle.git
@@ -32,7 +22,7 @@ make build && make install
 
 Requires macOS 14+ (Sonoma), Swift 6.0, and the [gh CLI](https://cli.github.com/) for GitHub integration.
 
-## Quick start guide
+## Quick start
 
 Add repos to the manifest:
 
@@ -54,15 +44,13 @@ mount = "~/Developer"
 "github.com/user/cool-cli"
 ```
 
-Sync everything:
+Then sync everything with `saddle up`.
 
-```sh
-saddle up
-```
+![saddle up](assets/up.png)
 
 ## Commands
 
-![saddle help](assets/help.png)
+![saddle --help](assets/help.png)
 
 ### Hooks
 

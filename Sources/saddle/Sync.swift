@@ -3,11 +3,8 @@ import Foundation
 
 struct Sync {
 
-    private static let colPadding = 4
-
     struct RowResult {
-        let url: String
-        let name: String
+        let relativePath: String
         let outcome: SyncOutcome
         let hookResult: HookResult?
     }
@@ -17,14 +14,44 @@ struct Sync {
         var results = SyncResult()
         var rows: [RowResult] = []
 
+        // Scan for existing repos
+
+        print()
+        print("  \(styled("Scanning\u{2026}", .bold))  \(styled(FS.shortenPath(devDir), .dim))")
+        fflush(stdout)
+
         let discoveredPaths = FS.findRepos(in: devDir)
+        let trackedNormalized = Set(urls.map { URLHelpers.normalize($0) })
+
+        let scanSpinner = ProgressSpinner()
+        scanSpinner.label = styled("\(discoveredPaths.count) found\u{2026}", .dim)
+        scanSpinner.start()
+
         var urlToPath: [String: String] = [:]
+        var untrackedCount = 0
         for repoPath in discoveredPaths {
             let (output, rc) = Exec.git("remote", "get-url", "origin", at: repoPath)
             if rc == 0, !output.isEmpty {
-                urlToPath[URLHelpers.normalize(output)] = repoPath
+                let normalized = URLHelpers.normalize(output)
+                urlToPath[normalized] = repoPath
+                if !trackedNormalized.contains(normalized) {
+                    untrackedCount += 1
+                }
+            } else {
+                untrackedCount += 1
             }
+            scanSpinner.label = styled("\(discoveredPaths.count) found, \(untrackedCount) untracked", .dim)
         }
+
+        scanSpinner.stop()
+
+        if untrackedCount == 0 {
+            print("  \(styled("\(discoveredPaths.count) found, all tracked", .dim))")
+        } else {
+            print("  \(styled("\(discoveredPaths.count) found, \(untrackedCount) untracked", .dim))")
+        }
+
+        // Build entries
 
         struct RepoEntry {
             let url: String
@@ -40,229 +67,150 @@ struct Sync {
             return RepoEntry(url: url, name: name, path: path, isExisting: path != nil)
         }
 
-        let missingIndices = entries.indices.filter { !entries[$0].isExisting }
-        let existingIndices = entries.indices.filter { entries[$0].isExisting }
+        // Single-pass: clone/pull + hooks
 
-        var outcomes: [SyncOutcome?] = Array(repeating: nil, count: entries.count)
+        print()
+        print("  \(styled("Wrangling\u{2026}", .bold))  \(styled("\(entries.count) repos", .dim))")
 
-        // Wrangling — clone missing repos
+        let spinner = ProgressSpinner()
+        spinner.start()
 
-        printPhase("Wrangling", "cloning missing repos")
+        for i in entries.indices {
+            let entry = entries[i]
+            let relativePath = URLHelpers.pathAfterHost(from: entry.url)
+            spinner.label = styled("[\(i + 1)/\(entries.count)]", .dim) + " " + styledRepoPath(relativePath) + styled("\u{2026}", .dim)
 
-        if missingIndices.isEmpty {
-            print("    \(styled("all repos present", .dim))")
-        } else {
-            for (phaseIdx, entryIdx) in missingIndices.enumerated() {
-                let entry = entries[entryIdx]
-                print("    \(styled("[\(phaseIdx + 1)/\(missingIndices.count)]", .dim)) \(entry.name)", terminator: "")
-                fflush(stdout)
-
+            // Clone or pull
+            let outcome: SyncOutcome
+            if !entry.isExisting {
                 let clonePath = "\(devDir)/\(URLHelpers.pathAfterHost(from: entry.url))"
-                let outcome: SyncOutcome
-                let parent = (clonePath as NSString).deletingLastPathComponent
-                if !FS.isDirectory(parent) { _ = FS.createDirectory(parent) }
-                let cloneURL = URLHelpers.cloneURL(from: entry.url, protocol: cloneProtocol)
-                let (_, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, clonePath], env: ["GIT_TERMINAL_PROMPT": "0"])
-                if exitCode == 0 {
-                    outcome = .synced
-                    entries[entryIdx].path = clonePath
-                } else {
-                    outcome = .failed("clone failed")
+                outcome = cloneRepo(url: entry.url, path: clonePath, cloneProtocol: cloneProtocol)
+                if case .synced = outcome {
+                    entries[i].path = clonePath
                 }
-
-                outcomes[entryIdx] = outcome
-                let (statusText, statusColor) = statusLabel(outcome)
-                print(" \(styled(statusText, statusColor))")
-
-                if case .failed(let reason) = outcome {
-                    Log.error("\(reason) for \(entry.name) (\(entry.url))")
+            } else if let existingPath = entry.path {
+                outcome = pullRepo(path: existingPath)
+                if case .failed = outcome {
+                    entries[i].path = nil
                 }
-                results.record(outcome, name: entry.name)
+            } else {
+                outcome = .unchanged
             }
-        }
 
-        // Grooming — pull latest changes
-
-        printPhase("Grooming", "pulling latest changes")
-
-        if existingIndices.isEmpty {
-            print("    \(styled("no existing repos", .dim))")
-        } else {
-            for (phaseIdx, entryIdx) in existingIndices.enumerated() {
-                let entry = entries[entryIdx]
-                guard let existingPath = entry.path else { continue }
-
-                print("    \(styled("[\(phaseIdx + 1)/\(existingIndices.count)]", .dim)) \(entry.name)", terminator: "")
-                fflush(stdout)
-
-                let outcome: SyncOutcome
-                let (statusOutput, _) = Exec.git("status", "--porcelain", at: existingPath)
-                if !statusOutput.isEmpty {
-                    outcome = .skipped
-                } else {
-                    let (_, fetchExit) = Exec.git("fetch", at: existingPath)
-                    if fetchExit != 0 {
-                        outcome = .failed("fetch failed")
-                        entries[entryIdx].path = nil
-                    } else {
-                        let (behindOutput, _) = Exec.git("rev-list", "--count", "HEAD..@{u}", at: existingPath)
-                        let behind = Int(behindOutput) ?? 0
-                        if behind == 0 {
-                            outcome = .unchanged
-                        } else {
-                            let (_, pullExit) = Exec.git("pull", "--ff-only", at: existingPath)
-                            if pullExit == 0 {
-                                outcome = .synced
-                            } else {
-                                outcome = .failed("pull failed")
-                                entries[entryIdx].path = nil
-                            }
-                        }
-                    }
-                }
-
-                outcomes[entryIdx] = outcome
-                let (statusText, statusColor) = statusLabel(outcome)
-                print(" \(styled(statusText, statusColor))")
-
-                if case .failed(let reason) = outcome {
-                    Log.error("\(reason) for \(entry.name) (\(entry.url))")
-                }
-                results.record(outcome, name: entry.name)
-            }
-        }
-
-        // Spurring — run hooks
-
-        printPhase("Spurring", "running hooks")
-
-        var hookResults: [Int: HookResult] = [:]
-        let hookIndices: [Int] = runHooks
-            ? entries.indices.filter { entries[$0].path != nil && HookResolver.hasHook(for: entries[$0].url) }
-            : []
-
-        if hookIndices.isEmpty {
-            print("    \(styled("no hooks to run", .dim))")
-        } else {
-            for (phaseIdx, entryIdx) in hookIndices.enumerated() {
-                let entry = entries[entryIdx]
-                let outcome = outcomes[entryIdx]
+            // Run hook
+            var hookResult: HookResult? = nil
+            if runHooks, let repoPath = entries[i].path, HookResolver.hasHook(for: entry.url) {
                 let isSynced: Bool
-                if let outcome, case .synced = outcome { isSynced = true } else { isSynced = false }
-                let isNewClone = !entries[entryIdx].isExisting && isSynced
+                if case .synced = outcome { isSynced = true } else { isSynced = false }
+                let isNewClone = !entry.isExisting && isSynced
                 let lifecycle: Lifecycle = isNewClone ? .install : .update
-
-                print("    \(styled("[\(phaseIdx + 1)/\(hookIndices.count)]", .dim)) \(entry.name)", terminator: "")
-                fflush(stdout)
-
-                let resolution = HookResolver.resolve(for: entry.url, lifecycle: lifecycle)
-
-                if let resolution, let repoPath = entry.path {
-                    let spinner = BrailleSpinner()
-                    spinner.start()
-                    let result = HookResolver.execute(resolution, at: repoPath)
-                    spinner.stop()
-
-                    // Reprint prefix since spinner clears the line
-                    print("    \(styled("[\(phaseIdx + 1)/\(hookIndices.count)]", .dim)) \(entry.name)", terminator: "")
-
-                    hookResults[entryIdx] = result
-                    if case .ran(_, let exitCode, _) = result {
-                        let status = exitCode == 0 ? styled("ok", .green) : styled("exit \(exitCode)", .red)
-                        print(" \(status)")
-                    } else {
-                        print()
-                    }
-                } else {
-                    print()
+                if let resolution = HookResolver.resolve(for: entry.url, lifecycle: lifecycle) {
+                    hookResult = HookResolver.execute(resolution, at: repoPath)
                 }
             }
+
+            // Record
+            results.record(outcome, name: entry.name)
+            if case .failed(let reason) = outcome {
+                Log.error("\(reason) for \(entry.name) (\(entry.url))")
+            }
+            rows.append(RowResult(relativePath: relativePath, outcome: outcome, hookResult: hookResult))
         }
 
-        for (i, entry) in entries.enumerated() {
-            let outcome = outcomes[i] ?? .unchanged
-            let hookResult = hookResults[i]
-            rows.append(RowResult(url: entry.url, name: entry.name, outcome: outcome, hookResult: hookResult))
+        spinner.stop()
+
+        // Render table
+
+        let sortedRows = rows.sorted { $0.relativePath.lowercased() < $1.relativePath.lowercased() }
+
+        let table = TrafficLightTable(segments: [
+            .indicators([
+                Indicator("synced", color: .blue),
+                Indicator("skipped (dirty)", color: .yellow),
+                Indicator("sync failed", color: .red),
+            ]),
+            .column(TextColumn("Repo", sizing: .auto())),
+            .column(TextColumn("Hook", sizing: .auto())),
+            .column(TextColumn("Log", sizing: .flexible(minWidth: 0))),
+        ])
+
+        let tableRows = sortedRows.map { row -> TrafficLightRow in
+            let isSynced: Bool
+            if case .synced = row.outcome { isSynced = true } else { isSynced = false }
+            let isDirty: Bool
+            if case .skipped = row.outcome { isDirty = true } else { isDirty = false }
+            let isFailed: Bool
+            if case .failed = row.outcome { isFailed = true } else { isFailed = false }
+
+            let hookCol: String
+            let logCol: String
+            switch row.hookResult {
+            case .ran(let hookName, let exitCode, let logPath):
+                let status = exitCode == 0 ? styled("ok", .green) : styled("exit \(exitCode)", .red)
+                hookCol = styled(hookName, .dim) + " " + status
+                logCol = styled(FS.shortenPath(logPath), .darkGray)
+            case .pending, nil:
+                hookCol = styled("\u{2014}", .dim)
+                logCol = ""
+            }
+
+            return TrafficLightRow(
+                indicators: [[
+                    isSynced ? .on : .off,
+                    isDirty ? .on : .off,
+                    isFailed ? .on : .off,
+                ]],
+                values: [styledRepoPath(row.relativePath), hookCol, logCol]
+            )
         }
 
-        let statusValues = ["synced", "up to date", "skipped (dirty)", "fetch failed", "pull failed", "clone failed"]
-        let hookEntries: [String] = rows.compactMap {
-            if case .ran(let n, let c, _) = $0.hookResult { return "\(n) \(c == 0 ? "ok" : "exit \(c)")" }
-            return nil
-        }
-        let colName = max("Repo".count, rows.map(\.name.count).max() ?? 0) + colPadding
-        let colStatus = max("Local Status".count, statusValues.map(\.count).max() ?? 0) + colPadding
-        let colHook = max("Hook".count, hookEntries.map(\.count).max() ?? 0) + colPadding
-
-        printHeader(colName: colName, colStatus: colStatus, colHook: colHook)
-        for row in rows {
-            printRow(row.name, row.outcome, row.hookResult, for: row.url, colName: colName, colStatus: colStatus, colHook: colHook)
-        }
+        let counts: [[Int]] = [[results.synced, results.skipped, results.failed]]
+        print(table.render(rows: tableRows, counts: counts, terminalWidth: terminalWidth()), terminator: "")
         printSyncSummary(results)
     }
 
-    private static func printPhase(_ name: String, _ description: String) {
-        print()
-        print("  \(styled("\(name)\u{2026}", .bold))  \(styled(description, .dim))")
-        print()
+    // MARK: - Sync Operations
+
+    private static func cloneRepo(url: String, path: String, cloneProtocol: Manifest.CloneProtocol) -> SyncOutcome {
+        let parent = (path as NSString).deletingLastPathComponent
+        if !FS.isDirectory(parent) { _ = FS.createDirectory(parent) }
+        let cloneURL = URLHelpers.cloneURL(from: url, protocol: cloneProtocol)
+        let (_, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"])
+        return exitCode == 0 ? .synced : .failed("clone failed")
+    }
+
+    private static func pullRepo(path: String) -> SyncOutcome {
+        let (statusOutput, _) = Exec.git("status", "--porcelain", at: path)
+        if !statusOutput.isEmpty { return .skipped }
+
+        let (_, fetchExit) = Exec.git("fetch", at: path)
+        if fetchExit != 0 { return .failed("fetch failed") }
+
+        let (behindOutput, _) = Exec.git("rev-list", "--count", "HEAD..@{u}", at: path)
+        let behind = Int(behindOutput) ?? 0
+        if behind == 0 { return .unchanged }
+
+        let (_, pullExit) = Exec.git("pull", "--ff-only", at: path)
+        return pullExit == 0 ? .synced : .failed("pull failed")
+    }
+
+    // MARK: - Formatting
+
+    private static func styledRepoPath(_ path: String) -> String {
+        guard let lastSlash = path.lastIndex(of: "/") else {
+            return styled(path, .custom(RGB(hex: "39FF14").fg))
+        }
+        let before = String(path[path.startIndex...lastSlash])
+        let name = String(path[path.index(after: lastSlash)...])
+        return styled(before, .darkGray) + styled(name, .custom(RGB(hex: "39FF14").fg))
     }
 
     // MARK: - Output
 
-    private static func printHeader(colName: Int, colStatus: Int, colHook: Int) {
-        print()
-        let header = "     "
-            + "Repo".padded(to: colName)
-            + "Local Status".padded(to: colStatus)
-            + "Hook".padded(to: colHook)
-            + "Log"
-        print(styled(header, .dim))
-        let totalWidth = 5 + colName + colStatus + colHook + 20
-        print(styled("\u{2500}".repeating(totalWidth), .dim))
-    }
-
-    private static func statusLabel(_ outcome: SyncOutcome) -> (String, Color) {
-        switch outcome {
-        case .synced:         return ("synced", .green)
-        case .unchanged:      return ("up to date", .gray)
-        case .skipped:        return ("skipped (dirty)", .yellow)
-        case .failed(let r):  return (r.isEmpty ? "failed" : r, .red)
-        }
-    }
-
-    private static func outcomeIndicator(_ outcome: SyncOutcome) -> String {
-        switch outcome {
-        case .failed:  return styled("\u{2717}", .red)
-        case .skipped: return styled("\u{2713}", .yellow)
-        default:       return styled("\u{2713}", .green)
-        }
-    }
-
-    private static func printRow(_ name: String, _ outcome: SyncOutcome, _ hookResult: HookResult?, for url: String, colName: Int, colStatus: Int, colHook: Int) {
-        let indicator = outcomeIndicator(outcome)
-        let (statusText, color) = statusLabel(outcome)
-        let paddedName = name.padded(to: colName)
-        let paddedStatus = styled(statusText, color).padded(to: colStatus)
-
-        let hookCol: String
-        let logCol: String
-        switch hookResult {
-        case .ran(let hookName, let exitCode, let logPath):
-            let status = exitCode == 0 ? styled("ok", .green) : styled("exit \(exitCode)", .red)
-            hookCol = (styled(hookName, .dim) + " " + status).padded(to: colHook)
-            logCol = styled("\u{2192} ", .dim) + styled(FS.shortenPath(logPath), .darkGray)
-        case .pending, nil:
-            hookCol = styled("\u{2014}", .dim).padded(to: colHook)
-            logCol = ""
-        }
-
-        print("  \(indicator)  \(paddedName)\(paddedStatus)\(hookCol)\(logCol)")
-    }
-
     private static func printSyncSummary(_ results: SyncResult) {
         print()
         var parts: [String] = []
-        if results.synced > 0 { parts.append(styled("\(results.synced) synced", .green)) }
+        if results.synced > 0 { parts.append(styled("\(results.synced) synced", .blue)) }
         if results.unchanged > 0 { parts.append(styled("\(results.unchanged) unchanged", .gray)) }
         if results.skipped > 0 { parts.append(styled("\(results.skipped) skipped", .yellow)) }
         if results.failed > 0 { parts.append(styled("\(results.failed) failed", .red)) }
