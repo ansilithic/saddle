@@ -90,9 +90,17 @@ struct FS {
 
             for entry in entries.sorted() {
                 guard !skipDirs.contains(entry) else { continue }
-                guard !entry.hasPrefix(".") else { continue }
                 let fullPath = "\(dir)/\(entry)"
                 guard isDirectory(fullPath) && !isSymlink(fullPath) else { continue }
+
+                if entry.hasPrefix(".") {
+                    // Don't recurse into hidden dirs, but check if they're repos
+                    if listDirectory(fullPath).contains(".git") {
+                        repos.append(fullPath)
+                    }
+                    continue
+                }
+
                 queue.append(fullPath)
             }
         }

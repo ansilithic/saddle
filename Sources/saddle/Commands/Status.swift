@@ -339,21 +339,21 @@ struct Status: ParsableCommand {
 
         let table = TrafficLightTable(segments: [
             .indicators([
-                Indicator("in manifest", color: .custom(RGB(hex: "4A9EC2").fg)),
-                Indicator("not in manifest", color: .custom(RGB(hex: "C85A6A").fg)),
+                Indicator("equipped (in manifest)", color: .custom(RGB(hex: "4A9EC2").fg)),
+                Indicator("stray (not in manifest)", color: .custom(RGB(hex: "C85A6A").fg)),
                 Indicator("hooked", color: .custom(RGB(hex: "7B2FBE").fg)),
             ]),
             .column(TextColumn("Local Repository (\(mountLabel))", sizing: .auto())),
             .indicators([
                 Indicator("private", color: .custom(RGB(hex: "1EA00C").fg)),
-                Indicator("public", color: .custom(RGB(hex: "A855F7").fg)),
-                Indicator("starred", color: .custom(RGB(hex: "FACC15").fg)),
+                Indicator("public", color: .custom(RGB(hex: "F97316").fg)),
+                Indicator("starred", color: .custom(RGB(hex: "FFE500").fg)),
             ]),
             .column(TextColumn("Origin", sizing: .auto())),
             .indicators([
                 Indicator("dirty", color: .custom(RGB(hex: "EF4444").fg)),
                 Indicator("ahead", color: .custom(RGB(hex: "22D3EE").fg)),
-                Indicator("behind", color: .custom(RGB(hex: "F97316").fg)),
+                Indicator("behind", color: .custom(RGB(hex: "A855F7").fg)),
             ]),
             .column(TextColumn("Last Commit", sizing: .fixed(14))),
             .column(TextColumn("Description", sizing: .flexible(minWidth: 10))),
@@ -425,8 +425,8 @@ struct Status: ParsableCommand {
     private func originIndicatorColors(repo: RepoInfo) -> [(r: Int, g: Int, b: Int)] {
         var colors: [(r: Int, g: Int, b: Int)] = []
         if repo.visibility == "private" { colors.append((30, 160, 12)) }    // private green
-        if repo.visibility == "public"  { colors.append((168, 85, 247)) }   // public purple
-        if repo.isStarred               { colors.append((250, 204, 21)) }   // starred yellow
+        if repo.visibility == "public"  { colors.append((249, 115, 22)) }   // public orange
+        if repo.isStarred               { colors.append((255, 229, 0)) }    // starred yellow
         return colors
     }
 

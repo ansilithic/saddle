@@ -7,7 +7,7 @@ BOLD := \033[1m
 RESET := \033[0m
 
 # Config
-BIN_DIR := /usr/local/bin
+BIN_DIR := $(HOME)/.local/bin
 COMPLETIONS_DIR := $(HOME)/.local/share/zsh/completions
 BINARY := saddle
 
@@ -30,11 +30,7 @@ install: completions
 		echo "$(YELLOW)No binary found.$(RESET) Run 'make build' first."; \
 		exit 1; \
 	fi
-	@if [ ! -d $(BIN_DIR) ] || [ ! -w $(BIN_DIR) ]; then \
-		echo "Setting up $(BIN_DIR) (requires sudo)..."; \
-		sudo mkdir -p $(BIN_DIR); \
-		sudo chown -R $$(whoami) $(BIN_DIR); \
-	fi
+	@mkdir -p $(BIN_DIR)
 	@echo "Installing $(BINARY) to $(BIN_DIR)..."
 	@if [ -f $(BIN_DIR)/$(BINARY) ]; then rm $(BIN_DIR)/$(BINARY); fi
 	@cp .build/release/$(BINARY) $(BIN_DIR)/$(BINARY)
@@ -103,9 +99,9 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Targets:$(RESET)"
 	@echo "  $(CYAN)build$(RESET)        $(GRAY)-$(RESET) $(GREEN)Build the release binary$(RESET)"
-	@echo "  $(CYAN)install$(RESET)      $(GRAY)-$(RESET) $(GREEN)Copy binary to /usr/local/bin$(RESET)"
+	@echo "  $(CYAN)install$(RESET)      $(GRAY)-$(RESET) $(GREEN)Copy binary to ~/.local/bin$(RESET)"
 	@echo "  $(CYAN)rebuild$(RESET)      $(GRAY)-$(RESET) $(GREEN)Clean, build, and install$(RESET)"
-	@echo "  $(CYAN)uninstall$(RESET)    $(GRAY)-$(RESET) $(GREEN)Remove binary from /usr/local/bin$(RESET)"
+	@echo "  $(CYAN)uninstall$(RESET)    $(GRAY)-$(RESET) $(GREEN)Remove binary from ~/.local/bin$(RESET)"
 	@echo "  $(CYAN)demo$(RESET)         $(GRAY)-$(RESET) $(GREEN)Run with fake data for screenshots$(RESET)"
 	@echo "  $(CYAN)test$(RESET)         $(GRAY)-$(RESET) $(GREEN)Run tests$(RESET)"
 	@echo "  $(CYAN)completions$(RESET)  $(GRAY)-$(RESET) $(GREEN)Generate zsh completions$(RESET)"
