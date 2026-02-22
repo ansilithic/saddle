@@ -2,8 +2,6 @@
 
 Repo wrangler for macOS — track, organize, and sync every git repository locally.
 
-`saddle` shows the state of every repo. `saddle up` clones missing repos, pulls updates, and runs install hooks.
-
 ![saddle](assets/status.png)
 
 ## Install
@@ -44,7 +42,7 @@ mount = "~/Developer"
 "github.com/user/cool-cli"
 ```
 
-Then sync everything with `saddle up`.
+Then sync everything with `saddle up`
 
 ![saddle up](assets/up.png)
 
@@ -54,24 +52,33 @@ Then sync everything with `saddle up`.
 
 ### Hooks
 
-Optional per-repo scripts that run during sync. The script's working directory is the repo itself, wherever it may be.
-
-**Directory format** (recommended):
+Optional per-repo scripts that run during sync. Each hook is a single `hook.sh` file with functions for different lifecycle phases. The script's working directory is the repo itself.
 
 ```
-~/.config/saddle/hooks/user-dotfiles/
-  install.sh     # first clone
-  update.sh      # subsequent syncs (falls back to install.sh)
-  uninstall.sh   # saddle unequip
+~/.config/saddle/hooks/user-dotfiles/hook.sh
 ```
 
-**Single-file format:**
+```bash
+#!/usr/bin/env bash
 
-```
-~/.config/saddle/hooks/user-dotfiles.sh
+install() {
+    make build && make install
+}
+
+uninstall() {
+    make uninstall
+}
+
+health() {
+    make health
+}
 ```
 
-Hook names are derived from the repo URL: `github.com/user/dotfiles` becomes `user-dotfiles`. All scripts must be executable. Output is logged to `~/.local/state/saddle/hooks/`.
+- `install` — runs on first clone and subsequent syncs (falls back from `update` if no `update` function is defined)
+- `uninstall` — runs on `saddle unequip`
+- `health` — checks if the tool is properly installed
+
+Hook names are derived from the repo URL: `github.com/user/dotfiles` becomes `user-dotfiles`. Scripts must be executable. Output is logged to `~/.local/state/saddle/hooks/`.
 
 ## GitHub and GitLab Integration
 

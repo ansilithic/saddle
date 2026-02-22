@@ -14,7 +14,7 @@ Saddle provides visibility into every git repo in a local development directory 
 | Check which repos have uncommitted changes | `saddle --dirty` |
 | Find repos not yet cloned | `saddle --all` |
 | Clone and set up a repo from the manifest | `saddle up` |
-| Add a repo to the manifest | `saddle equip <url>` |
+| Add a repo to the manifest | Edit `manifest.toml` or `saddle equip <url>` |
 | Create a PR, view issues, call GitHub API | `gh` |
 
 ## Commands
@@ -65,7 +65,7 @@ Show saddle configuration: manifest path, mount directory, hook directory, authe
 | Path | Purpose |
 |------|---------|
 | `~/.config/saddle/manifest.toml` | Repo manifest |
-| `~/.config/saddle/hooks/` | Install/update/uninstall hook scripts |
+| `~/.config/saddle/hooks/` | Per-repo hook scripts (`hook.sh` with functions) |
 | `~/.local/state/saddle/` | Logs and state |
 
 ## Tips for agents
@@ -74,5 +74,5 @@ Show saddle configuration: manifest path, mount directory, hook directory, authe
 - Use `saddle --dirty` to find repos with uncommitted work before making changes.
 - Use `saddle --stray` to find repos that exist locally but aren't tracked.
 - Saddle reads auth from `gh auth token` — if `gh` is authenticated, saddle gets GitHub data automatically.
-- Don't modify `manifest.toml` directly — use `saddle equip` and `saddle unequip`.
+- Editing `manifest.toml` directly is fine. `saddle equip` and `saddle unequip` are conveniences for interactive use.
 - Hook scripts are optional. Most repos don't need them.
