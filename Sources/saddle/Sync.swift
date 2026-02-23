@@ -175,7 +175,7 @@ struct Sync {
         let parent = (path as NSString).deletingLastPathComponent
         if !FS.isDirectory(parent) { _ = FS.createDirectory(parent) }
         let cloneURL = URLHelpers.cloneURL(from: url, protocol: cloneProtocol)
-        let (_, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"])
+        let (_, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"], timeout: 60)
         return exitCode == 0 ? .synced : .failed("clone failed")
     }
 
@@ -183,14 +183,14 @@ struct Sync {
         let (statusOutput, _) = Exec.git("status", "--porcelain", at: path)
         if !statusOutput.isEmpty { return .skipped }
 
-        let (_, fetchExit) = Exec.git("fetch", at: path)
+        let (_, fetchExit) = Exec.git("fetch", at: path, timeout: 60)
         if fetchExit != 0 { return .failed("fetch failed") }
 
         let (behindOutput, _) = Exec.git("rev-list", "--count", "HEAD..@{u}", at: path)
         let behind = Int(behindOutput) ?? 0
         if behind == 0 { return .unchanged }
 
-        let (_, pullExit) = Exec.git("pull", "--ff-only", at: path)
+        let (_, pullExit) = Exec.git("pull", "--ff-only", at: path, timeout: 60)
         return pullExit == 0 ? .synced : .failed("pull failed")
     }
 
