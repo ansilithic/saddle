@@ -12,7 +12,7 @@ COMPLETIONS_DIR := $(HOME)/.local/share/zsh/completions
 BINARY := saddle
 
 .DEFAULT_GOAL := help
-.PHONY: build install uninstall health clean rebuild test demo completions help
+.PHONY: build install uninstall health clean rebuild test completions help
 
 # ============================================================
 # Build
@@ -69,14 +69,6 @@ health:
 rebuild: clean build install
 
 # ============================================================
-# Demo (fake data for screenshots)
-# ============================================================
-demo: build
-	@./scripts/demo.sh setup
-	@echo ""
-	@PATH=".build/release:$$PATH" ./scripts/demo.sh run
-
-# ============================================================
 # Test
 # ============================================================
 test:
@@ -116,7 +108,6 @@ help:
 	@echo "  $(CYAN)rebuild$(RESET)      $(GRAY)-$(RESET) $(GREEN)Clean, build, and install$(RESET)"
 	@echo "  $(CYAN)uninstall$(RESET)    $(GRAY)-$(RESET) $(GREEN)Remove binary from ~/.local/bin$(RESET)"
 	@echo "  $(CYAN)health$(RESET)    $(GRAY)-$(RESET) $(GREEN)Check if binary is installed$(RESET)"
-	@echo "  $(CYAN)demo$(RESET)         $(GRAY)-$(RESET) $(GREEN)Run with fake data for screenshots$(RESET)"
 	@echo "  $(CYAN)test$(RESET)         $(GRAY)-$(RESET) $(GREEN)Run tests$(RESET)"
 	@echo "  $(CYAN)completions$(RESET)  $(GRAY)-$(RESET) $(GREEN)Generate zsh completions$(RESET)"
 	@echo "  $(CYAN)clean$(RESET)        $(GRAY)-$(RESET) $(GREEN)Remove build artifacts$(RESET)"
