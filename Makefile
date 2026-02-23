@@ -8,7 +8,8 @@ RESET := \033[0m
 
 # Config
 BIN_DIR := $(HOME)/.local/bin
-COMPLETIONS_DIR := $(HOME)/.local/share/zsh/completions
+XDG_DATA_HOME := $(or $(XDG_DATA_HOME),$(HOME)/.local/share)
+COMPLETIONS_DIR := $(shell zsh -c 'for d in $${fpath}; do if [[ "$$d" == $(HOME)/* ]] && [[ -d "$$d" ]] && [[ -w "$$d" ]]; then echo "$$d"; exit 0; fi; done; echo "$(XDG_DATA_HOME)/zsh/completions"')
 BINARY := saddle
 
 .DEFAULT_GOAL := help
@@ -94,6 +95,8 @@ completions:
 	@mkdir -p $(COMPLETIONS_DIR)
 	@.build/release/$(BINARY) completions > $(COMPLETIONS_DIR)/_$(BINARY)
 	@echo "$(GREEN)Completions installed to $(COMPLETIONS_DIR)$(RESET)"
+	@zsh -ic 'for d in $$fpath; do [ "$$d" = "$(COMPLETIONS_DIR)" ] && exit 0; done; exit 1' 2>/dev/null \
+		|| echo "$(YELLOW)Warning:$(RESET) $(COMPLETIONS_DIR) is not in your fpath"
 
 # ============================================================
 # Help

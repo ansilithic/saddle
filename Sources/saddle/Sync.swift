@@ -213,11 +213,11 @@ struct Sync {
 
     private static func styledRepoPath(_ path: String) -> String {
         guard let lastSlash = path.lastIndex(of: "/") else {
-            return styled(path, .custom(RGB(hex: "39FF14").fg))
+            return styled(path, .bold)
         }
         let before = String(path[path.startIndex...lastSlash])
         let name = String(path[path.index(after: lastSlash)...])
-        return styled(before, .darkGray) + styled(name, .custom(RGB(hex: "39FF14").fg))
+        return styled(before, .darkGray) + styled(name, .bold)
     }
 
     // MARK: - Output

@@ -64,7 +64,8 @@ struct Status: ParsableCommand {
     }
 
     func run() {
-        let spinner = BrailleSpinner(label: "Scanning repos\u{2026}")
+        let spinner = ProgressSpinner()
+        spinner.label = styled("Scanning repos\u{2026}", .dim)
         spinner.start()
 
         let manifest: Manifest?
@@ -78,7 +79,7 @@ struct Status: ParsableCommand {
         let devDir = manifest?.mount ?? FS.expandPath(Parser.defaultMount)
         let declaredURLs = manifest?.repos ?? []
 
-        let (allRepos, _, forgeResult) = gatherRepos(manifest: manifest, devDir: devDir, declaredURLs: declaredURLs)
+        let (allRepos, _, forgeResult) = gatherRepos(manifest: manifest, devDir: devDir, declaredURLs: declaredURLs, spinner: spinner)
 
         spinner.stop()
 
@@ -173,7 +174,7 @@ struct Status: ParsableCommand {
 
     // MARK: - Data Gathering
 
-    private func gatherRepos(manifest: Manifest?, devDir: String, declaredURLs: [String]) -> (repos: [RepoInfo], missingURLs: [String], forge: ForgeResult) {
+    private func gatherRepos(manifest: Manifest?, devDir: String, declaredURLs: [String], spinner: ProgressSpinner) -> (repos: [RepoInfo], missingURLs: [String], forge: ForgeResult) {
         let normalizedDeclared = Set(declaredURLs.map { URLHelpers.normalize($0) })
 
         nonisolated(unsafe) var forgeResult = ForgeResult()
@@ -190,6 +191,9 @@ struct Status: ParsableCommand {
         let emptyGit = GitHelpers.GitInfo(remoteURL: nil, branch: "", status: "", ahead: 0, behind: 0, lastCommitTime: "")
         var partials = Array(repeating: PartialInfo(relativePath: "", fullPath: "", git: emptyGit, saddled: false, hasHook: false), count: repoCount)
 
+        let scanLock = NSLock()
+        nonisolated(unsafe) var scanned = 0
+
         partials.withUnsafeMutableBufferPointer { buf in
             nonisolated(unsafe) let buffer = buf
             DispatchQueue.concurrentPerform(iterations: repoCount) { i in
@@ -201,6 +205,11 @@ struct Status: ParsableCommand {
                 let hasHook = git.remoteURL.map { HookResolver.hasHook(for: $0) } ?? false
 
                 buffer[i] = PartialInfo(relativePath: relativePath, fullPath: repoPath, git: git, saddled: saddled, hasHook: hasHook)
+
+                scanLock.lock()
+                scanned += 1
+                spinner.label = styled("[\(scanned)/\(repoCount)]", .dim) + " " + styled("\(repoCount - scanned) remaining\u{2026}", .dim)
+                scanLock.unlock()
             }
         }
 
@@ -459,7 +468,7 @@ struct Status: ParsableCommand {
             (String(pathRaw[pathRaw.startIndex...slash]), String(pathRaw[pathRaw.index(after: slash)...]))
         } ?? ("", pathRaw)
 
-        return styled(before, .darkGray) + styled(name, .custom(RGB(hex: "39FF14").fg))
+        return styled(before, .darkGray) + styled(name, .bold)
     }
 
     private func blendedString(_ text: String, colors: [(r: Int, g: Int, b: Int)]) -> String {
