@@ -502,7 +502,9 @@ struct Status: ParsableCommand {
         let hours = minutes / 60
         if hours < 24 { return "\(hours) hour\(hours == 1 ? "" : "s") ago" }
         let days = hours / 24
-        if days < 30 { return "\(days) day\(days == 1 ? "" : "s") ago" }
+        if days < 7 { return "\(days) day\(days == 1 ? "" : "s") ago" }
+        let weeks = days / 7
+        if days < 30 { return "\(weeks) week\(weeks == 1 ? "" : "s") ago" }
         let months = days / 30
         if months < 12 { return "\(months) month\(months == 1 ? "" : "s") ago" }
         let years = months / 12
