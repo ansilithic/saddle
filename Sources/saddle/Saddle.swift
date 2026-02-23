@@ -12,7 +12,7 @@ struct Saddle: ParsableCommand {
 
     static func main() {
         let args = Array(CommandLine.arguments.dropFirst())
-        let subcommands = Set(["status", "up", "equip", "unequip", "info"])
+        let subcommands = Set(["status", "up", "equip", "unequip", "info", "completions"])
         let isTopLevel = !args.contains(where: { subcommands.contains($0) })
         let wantsHelp = args.contains("-h") || args.contains("--help")
             || args.first == "help" && args.count <= 1

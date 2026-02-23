@@ -46,6 +46,7 @@ enum Forge {
     }
 
     private static func loadMock() -> ForgeResult? {
+        #if DEBUG
         guard let path = ProcessInfo.processInfo.environment["SADDLE_FORGE_MOCK"],
               !path.isEmpty,
               let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
@@ -57,6 +58,9 @@ enum Forge {
         result.starredURLs = Set(mock.starred)
         result.authenticatedUser = mock.user
         return result
+        #else
+        return nil
+        #endif
     }
 }
 
