@@ -35,12 +35,13 @@ struct ForgeHTTP: Sendable {
         _ path: String,
         token: String,
         params: [(String, String)] = [],
-        perPage: Int = 100
+        perPage: Int = 100,
+        maxPages: Int = 50
     ) -> [T] {
         let decoder = JSONDecoder()
         var all: [T] = []
         var page = 1
-        while true {
+        while page <= maxPages {
             var pageParams = params
             pageParams.append(("per_page", "\(perPage)"))
             pageParams.append(("page", "\(page)"))
