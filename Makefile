@@ -8,7 +8,7 @@ RESET := \033[0m
 
 # Config
 BIN_DIR := $(HOME)/.local/bin
-COMPLETIONS_DIR := /usr/local/share/zsh/site-functions
+COMPLETIONS_DIR := $(HOME)/.local/share/zsh/completions
 BINARY := saddle
 
 .DEFAULT_GOAL := help
@@ -43,10 +43,14 @@ uninstall:
 	@if [ -f $(BIN_DIR)/$(BINARY) ]; then \
 		echo "Removing $(BIN_DIR)/$(BINARY)..."; \
 		rm $(BIN_DIR)/$(BINARY); \
-		echo "$(GREEN)Uninstalled!$(RESET)"; \
 	else \
 		echo "$(YELLOW)$(BINARY) not found in $(BIN_DIR).$(RESET)"; \
 	fi
+	@if [ -f $(COMPLETIONS_DIR)/_$(BINARY) ]; then \
+		echo "Removing $(COMPLETIONS_DIR)/_$(BINARY)..."; \
+		rm $(COMPLETIONS_DIR)/_$(BINARY); \
+	fi
+	@echo "$(GREEN)Uninstalled!$(RESET)"
 
 # ============================================================
 # Health
@@ -95,17 +99,8 @@ completions:
 		echo "$(YELLOW)No binary found.$(RESET) Run 'make build' first."; \
 		exit 1; \
 	fi
-	@mkdir -p completions
-	@.build/release/$(BINARY) completions > completions/_$(BINARY)
-	@if [ ! -d $(COMPLETIONS_DIR) ]; then \
-		echo "Creating $(COMPLETIONS_DIR) (requires sudo)..."; \
-		sudo mkdir -p $(COMPLETIONS_DIR); \
-	fi
-	@if [ -w $(COMPLETIONS_DIR) ]; then \
-		cp completions/_$(BINARY) $(COMPLETIONS_DIR)/_$(BINARY); \
-	else \
-		sudo cp completions/_$(BINARY) $(COMPLETIONS_DIR)/_$(BINARY); \
-	fi
+	@mkdir -p $(COMPLETIONS_DIR)
+	@.build/release/$(BINARY) completions > $(COMPLETIONS_DIR)/_$(BINARY)
 	@echo "$(GREEN)Completions installed to $(COMPLETIONS_DIR)$(RESET)"
 
 # ============================================================
