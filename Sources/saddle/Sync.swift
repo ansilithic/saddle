@@ -11,7 +11,7 @@ struct Sync {
 
     static func syncDeclaredRepos(_ urls: [String], mount: String, cloneProtocol: Manifest.CloneProtocol = .ssh, runHooks: Bool = true) {
         let devDir = mount
-        var results = SyncResult()
+        nonisolated(unsafe) var results = SyncResult()
         var rows: [RowResult] = []
 
         // Scan for existing repos
@@ -60,14 +60,14 @@ struct Sync {
             let isExisting: Bool
         }
 
-        var entries: [RepoEntry] = urls.map { url in
+        let entries: [RepoEntry] = urls.map { url in
             let name = URLHelpers.repoName(from: url)
             let normalized = URLHelpers.normalize(url)
             let path = urlToPath[normalized]
             return RepoEntry(url: url, name: name, path: path, isExisting: path != nil)
         }
 
-        // Single-pass: clone/pull + hooks
+        // Concurrent clone/pull + hooks
 
         print()
         print("  \(styled("Wrangling\u{2026}", .bold))  \(styled("\(entries.count) repos", .dim))")
@@ -75,47 +75,62 @@ struct Sync {
         let spinner = ProgressSpinner()
         spinner.start()
 
-        for i in entries.indices {
-            let entry = entries[i]
-            let relativePath = URLHelpers.pathAfterHost(from: entry.url)
-            spinner.label = styled("[\(i + 1)/\(entries.count)]", .dim) + " " + styledRepoPath(relativePath) + styled("\u{2026}", .dim)
+        let entryCount = entries.count
+        let lock = NSLock()
+        nonisolated(unsafe) var completed = 0
+        var rowBuffer = Array(repeating: RowResult(relativePath: "", outcome: .unchanged, hookResult: nil), count: entryCount)
 
-            // Clone or pull
-            let outcome: SyncOutcome
-            if !entry.isExisting {
-                let clonePath = "\(devDir)/\(URLHelpers.pathAfterHost(from: entry.url))"
-                outcome = cloneRepo(url: entry.url, path: clonePath, cloneProtocol: cloneProtocol)
-                if case .synced = outcome {
-                    entries[i].path = clonePath
-                }
-            } else if let existingPath = entry.path {
-                outcome = pullRepo(path: existingPath)
-                if case .failed = outcome {
-                    entries[i].path = nil
-                }
-            } else {
-                outcome = .unchanged
-            }
+        rowBuffer.withUnsafeMutableBufferPointer { buf in
+            nonisolated(unsafe) let buffer = buf
+            DispatchQueue.concurrentPerform(iterations: entryCount) { i in
+                let entry = entries[i]
+                let relativePath = URLHelpers.pathAfterHost(from: entry.url)
 
-            // Run hook
-            var hookResult: HookResult? = nil
-            if runHooks, let repoPath = entries[i].path, HookResolver.hasHook(for: entry.url) {
-                let isSynced: Bool
-                if case .synced = outcome { isSynced = true } else { isSynced = false }
-                let isNewClone = !entry.isExisting && isSynced
-                let lifecycle: Lifecycle = isNewClone ? .install : .update
-                if let resolution = HookResolver.resolve(for: entry.url, lifecycle: lifecycle) {
-                    hookResult = HookResolver.execute(resolution, at: repoPath)
+                // Clone or pull
+                let outcome: SyncOutcome
+                var resolvedPath = entry.path
+                if !entry.isExisting {
+                    let clonePath = "\(devDir)/\(URLHelpers.pathAfterHost(from: entry.url))"
+                    outcome = cloneRepo(url: entry.url, path: clonePath, cloneProtocol: cloneProtocol)
+                    if case .synced = outcome {
+                        resolvedPath = clonePath
+                    }
+                } else if let existingPath = entry.path {
+                    outcome = pullRepo(path: existingPath)
+                    if case .failed = outcome {
+                        resolvedPath = nil
+                    }
+                } else {
+                    outcome = .unchanged
                 }
-            }
 
-            // Record
-            results.record(outcome, name: entry.name)
-            if case .failed(let reason) = outcome {
-                Log.error("\(reason) for \(entry.name) (\(entry.url))")
+                // Run hook
+                var hookResult: HookResult? = nil
+                if runHooks, let repoPath = resolvedPath, HookResolver.hasHook(for: entry.url) {
+                    let isSynced: Bool
+                    if case .synced = outcome { isSynced = true } else { isSynced = false }
+                    let isNewClone = !entry.isExisting && isSynced
+                    let lifecycle: Lifecycle = isNewClone ? .install : .update
+                    if let resolution = HookResolver.resolve(for: entry.url, lifecycle: lifecycle) {
+                        hookResult = HookResolver.execute(resolution, at: repoPath)
+                    }
+                }
+
+                // Record (synchronized)
+                lock.lock()
+                completed += 1
+                results.record(outcome, name: entry.name)
+                if case .failed(let reason) = outcome {
+                    Log.error("\(reason) for \(entry.name) (\(entry.url))")
+                }
+                spinner.label = styled("[\(completed)/\(entryCount)]", .dim) + " " + styled("\(entryCount - completed) remaining\u{2026}", .dim)
+                lock.unlock()
+
+                buffer[i] = RowResult(relativePath: relativePath, outcome: outcome, hookResult: hookResult)
             }
-            rows.append(RowResult(relativePath: relativePath, outcome: outcome, hookResult: hookResult))
         }
+
+        rows = rowBuffer
 
         spinner.stop()
 
@@ -175,7 +190,7 @@ struct Sync {
         let parent = (path as NSString).deletingLastPathComponent
         if !FS.isDirectory(parent) { _ = FS.createDirectory(parent) }
         let cloneURL = URLHelpers.cloneURL(from: url, protocol: cloneProtocol)
-        let (_, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"])
+        let (_, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"], timeout: 60)
         return exitCode == 0 ? .synced : .failed("clone failed")
     }
 
@@ -183,14 +198,14 @@ struct Sync {
         let (statusOutput, _) = Exec.git("status", "--porcelain", at: path)
         if !statusOutput.isEmpty { return .skipped }
 
-        let (_, fetchExit) = Exec.git("fetch", at: path)
+        let (_, fetchExit) = Exec.git("fetch", at: path, timeout: 60)
         if fetchExit != 0 { return .failed("fetch failed") }
 
         let (behindOutput, _) = Exec.git("rev-list", "--count", "HEAD..@{u}", at: path)
         let behind = Int(behindOutput) ?? 0
         if behind == 0 { return .unchanged }
 
-        let (_, pullExit) = Exec.git("pull", "--ff-only", at: path)
+        let (_, pullExit) = Exec.git("pull", "--ff-only", at: path, timeout: 60)
         return pullExit == 0 ? .synced : .failed("pull failed")
     }
 

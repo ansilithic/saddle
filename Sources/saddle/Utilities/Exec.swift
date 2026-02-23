@@ -2,7 +2,7 @@ import Foundation
 
 struct Exec {
     @discardableResult
-    static func run(_ executable: String, args: [String], cwd: String? = nil, env: [String: String]? = nil) -> (output: String, exitCode: Int32) {
+    static func run(_ executable: String, args: [String], cwd: String? = nil, env: [String: String]? = nil, timeout: TimeInterval? = nil) -> (output: String, exitCode: Int32) {
         let task = Process()
         let pipe = Pipe()
 
@@ -30,8 +30,26 @@ struct Exec {
             return ("", 1)
         }
 
+        var timedOut = false
+        var timeoutWorkItem: DispatchWorkItem?
+
+        if let timeout = timeout {
+            let item = DispatchWorkItem {
+                timedOut = true
+                task.terminate()
+            }
+            timeoutWorkItem = item
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: item)
+        }
+
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         task.waitUntilExit()
+
+        timeoutWorkItem?.cancel()
+
+        if timedOut {
+            return ("timed out after \(Int(timeout!))s", 124)
+        }
 
         let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
@@ -39,7 +57,7 @@ struct Exec {
     }
 
     @discardableResult
-    static func git(_ args: String..., at path: String) -> (output: String, exitCode: Int32) {
+    static func git(_ args: String..., at path: String, timeout: TimeInterval? = nil) -> (output: String, exitCode: Int32) {
         let task = Process()
         let pipe = Pipe()
 
@@ -55,8 +73,26 @@ struct Exec {
 
         do { try task.run() } catch { return ("", 1) }
 
+        var timedOut = false
+        var timeoutWorkItem: DispatchWorkItem?
+
+        if let timeout = timeout {
+            let item = DispatchWorkItem {
+                timedOut = true
+                task.terminate()
+            }
+            timeoutWorkItem = item
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: item)
+        }
+
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         task.waitUntilExit()
+
+        timeoutWorkItem?.cancel()
+
+        if timedOut {
+            return ("timed out after \(Int(timeout!))s", 124)
+        }
 
         let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return (output, task.terminationStatus)
