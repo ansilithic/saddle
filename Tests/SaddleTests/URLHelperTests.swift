@@ -76,6 +76,22 @@ final class URLHelperTests: XCTestCase {
         XCTAssertEqual(URLHelpers.hookBaseName(from: "git@github.com:user/project.git"), "user-project")
     }
 
+    func testHookBaseNameStripsQuotes() {
+        XCTAssertEqual(URLHelpers.hookBaseName(from: "github.com/o'malley/repo"), "omalley-repo")
+    }
+
+    func testHookBaseNameStripsShellMetachars() {
+        XCTAssertEqual(URLHelpers.hookBaseName(from: "github.com/user$(evil)/repo;rm"), "userevil-reporm")
+    }
+
+    func testSanitizeHookNamePreservesValid() {
+        XCTAssertEqual(URLHelpers.sanitizeHookName("user-repo.v2_test"), "user-repo.v2_test")
+    }
+
+    func testSanitizeHookNameStripsInvalid() {
+        XCTAssertEqual(URLHelpers.sanitizeHookName("user'repo;echo"), "userrepoecho")
+    }
+
     // MARK: - normalize edge cases
 
     func testNormalizeCaseInsensitive() {

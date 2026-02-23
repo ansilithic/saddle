@@ -72,10 +72,24 @@ enum URLHelpers {
     }
 
     /// Derive a hook base name from a URL (owner-repo, no extension).
+    /// The result is sanitized to only contain `[a-zA-Z0-9._-]` characters
+    /// to prevent path traversal or shell injection when used in file paths
+    /// and bash commands.
     static func hookBaseName(from url: String) -> String {
         let normalized = normalize(url)
         let parts = normalized.split(separator: "/")
-        guard parts.count >= 3 else { return repoName(from: url) }
-        return "\(parts[parts.count - 2])-\(parts[parts.count - 1])"
+        let raw: String
+        if parts.count >= 3 {
+            raw = "\(parts[parts.count - 2])-\(parts[parts.count - 1])"
+        } else {
+            raw = repoName(from: url)
+        }
+        return sanitizeHookName(raw)
+    }
+
+    /// Strip characters outside `[a-zA-Z0-9._-]` from a hook name.
+    static func sanitizeHookName(_ name: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-"))
+        return String(name.unicodeScalars.filter { allowed.contains($0) })
     }
 }
