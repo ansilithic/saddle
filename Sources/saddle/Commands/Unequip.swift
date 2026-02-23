@@ -43,9 +43,9 @@ struct Unequip: ParsableCommand {
             let result = HookResolver.execute(resolution, at: repoPath)
             spinner.stop()
 
-            if case .ran(_, let exitCode, let logPath) = result, exitCode != 0 {
+            if case .ran(_, let exitCode) = result, exitCode != 0 {
                 Output.warning("Uninstall hook failed (exit \(exitCode))")
-                print(styled("  Log: \(FS.shortenPath(logPath))", .dim))
+                print(styled("  /usr/bin/log show --predicate 'subsystem == \"com.ansilithic.saddle\"' --last 5m", .dim))
             } else {
                 print(styled("Uninstalled", .yellow) + " " + resolution.hookName)
             }

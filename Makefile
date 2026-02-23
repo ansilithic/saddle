@@ -7,9 +7,8 @@ BOLD := \033[1m
 RESET := \033[0m
 
 # Config
-BIN_DIR := $(HOME)/.local/bin
-XDG_DATA_HOME := $(or $(XDG_DATA_HOME),$(HOME)/.local/share)
-COMPLETIONS_DIR := $(shell zsh -c 'for d in $${fpath}; do if [[ "$$d" == $(HOME)/* ]] && [[ -d "$$d" ]] && [[ -w "$$d" ]]; then echo "$$d"; exit 0; fi; done; echo "$(XDG_DATA_HOME)/zsh/completions"')
+BIN_DIR := /usr/local/bin
+COMPLETIONS_DIR := $(shell zsh -c 'for d in $${fpath}; do if [[ "$$d" == $(HOME)/* ]] && [[ -d "$$d" ]] && [[ -w "$$d" ]]; then echo "$$d"; exit 0; fi; done; echo "$(HOME)/Library/Application Support/zsh/completions"')
 BINARY := saddle
 
 .DEFAULT_GOAL := help
@@ -47,9 +46,9 @@ uninstall:
 	else \
 		echo "$(YELLOW)$(BINARY) not found in $(BIN_DIR).$(RESET)"; \
 	fi
-	@if [ -f $(COMPLETIONS_DIR)/_$(BINARY) ]; then \
+	@if [ -f "$(COMPLETIONS_DIR)/_$(BINARY)" ]; then \
 		echo "Removing $(COMPLETIONS_DIR)/_$(BINARY)..."; \
-		rm $(COMPLETIONS_DIR)/_$(BINARY); \
+		rm "$(COMPLETIONS_DIR)/_$(BINARY)"; \
 	fi
 	@echo "$(GREEN)Uninstalled!$(RESET)"
 
@@ -92,8 +91,8 @@ completions:
 		echo "$(YELLOW)No binary found.$(RESET) Run 'make build' first."; \
 		exit 1; \
 	fi
-	@mkdir -p $(COMPLETIONS_DIR)
-	@.build/release/$(BINARY) completions > $(COMPLETIONS_DIR)/_$(BINARY)
+	@mkdir -p "$(COMPLETIONS_DIR)"
+	@.build/release/$(BINARY) completions > "$(COMPLETIONS_DIR)/_$(BINARY)"
 	@echo "$(GREEN)Completions installed to $(COMPLETIONS_DIR)$(RESET)"
 	@zsh -ic 'for d in $$fpath; do [ "$$d" = "$(COMPLETIONS_DIR)" ] && exit 0; done; exit 1' 2>/dev/null \
 		|| echo "$(YELLOW)Warning:$(RESET) $(COMPLETIONS_DIR) is not in your fpath"
@@ -107,9 +106,9 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Targets:$(RESET)"
 	@echo "  $(CYAN)build$(RESET)        $(GRAY)-$(RESET) $(GREEN)Build the release binary$(RESET)"
-	@echo "  $(CYAN)install$(RESET)      $(GRAY)-$(RESET) $(GREEN)Copy binary to ~/.local/bin$(RESET)"
+	@echo "  $(CYAN)install$(RESET)      $(GRAY)-$(RESET) $(GREEN)Copy binary to /usr/local/bin$(RESET)"
 	@echo "  $(CYAN)rebuild$(RESET)      $(GRAY)-$(RESET) $(GREEN)Clean, build, and install$(RESET)"
-	@echo "  $(CYAN)uninstall$(RESET)    $(GRAY)-$(RESET) $(GREEN)Remove binary from ~/.local/bin$(RESET)"
+	@echo "  $(CYAN)uninstall$(RESET)    $(GRAY)-$(RESET) $(GREEN)Remove binary from /usr/local/bin$(RESET)"
 	@echo "  $(CYAN)health$(RESET)    $(GRAY)-$(RESET) $(GREEN)Check if binary is installed$(RESET)"
 	@echo "  $(CYAN)test$(RESET)         $(GRAY)-$(RESET) $(GREEN)Run tests$(RESET)"
 	@echo "  $(CYAN)completions$(RESET)  $(GRAY)-$(RESET) $(GREEN)Generate zsh completions$(RESET)"

@@ -1,9 +1,10 @@
 import CLICore
 import Foundation
+import os
 
 enum HookResult {
     case pending
-    case ran(name: String, exitCode: Int32, logPath: String)
+    case ran(name: String, exitCode: Int32)
 }
 
 enum Lifecycle {
@@ -130,17 +131,16 @@ enum HookResolver {
             (output, exitCode) = Exec.run("/bin/bash", args: ["-c", command], cwd: repoPath)
         }
 
-        let logsDir = Config.hookLogsDir
-        if !FS.isDirectory(logsDir) { _ = FS.createDirectory(logsDir) }
-        let logPath = "\(logsDir)/\(resolution.hookName).log"
-        let timestamp = DateFormatting.iso8601.string(from: Date())
-        let logContent = "[\(timestamp)] \(resolution.lifecycle) exit \(exitCode)\n\(output)\n"
-        _ = FS.writeFile(logPath, contents: logContent)
+        let logger = Logger(subsystem: "com.ansilithic.saddle", category: "hooks")
+        let hook = resolution.hookName
+        let phase = "\(resolution.lifecycle)"
 
-        if exitCode != 0 {
-            Log.error("Hook \(resolution.hookName) (\(resolution.lifecycle)) failed (exit \(exitCode))")
+        if exitCode == 0 {
+            logger.info("[\(hook, privacy: .public)] \(phase, privacy: .public) ok\n\(output, privacy: .public)")
+        } else {
+            logger.error("[\(hook, privacy: .public)] \(phase, privacy: .public) exit \(exitCode)\n\(output, privacy: .public)")
         }
 
-        return .ran(name: resolution.hookName, exitCode: exitCode, logPath: logPath)
+        return .ran(name: resolution.hookName, exitCode: exitCode)
     }
 }

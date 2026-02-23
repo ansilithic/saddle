@@ -146,7 +146,6 @@ struct Sync {
             ]),
             .column(TextColumn("Repo", sizing: .auto())),
             .column(TextColumn("Hook", sizing: .auto())),
-            .column(TextColumn("Log", sizing: .flexible(minWidth: 0))),
         ])
 
         let tableRows = sortedRows.map { row -> TrafficLightRow in
@@ -158,15 +157,12 @@ struct Sync {
             if case .failed = row.outcome { isFailed = true } else { isFailed = false }
 
             let hookCol: String
-            let logCol: String
             switch row.hookResult {
-            case .ran(let hookName, let exitCode, let logPath):
+            case .ran(let hookName, let exitCode):
                 let status = exitCode == 0 ? styled("ok", .green) : styled("exit \(exitCode)", .red)
                 hookCol = styled(hookName, .dim) + " " + status
-                logCol = styled(FS.shortenPath(logPath), .darkGray)
             case .pending, nil:
                 hookCol = styled("\u{2014}", .dim)
-                logCol = ""
             }
 
             return TrafficLightRow(
@@ -175,7 +171,7 @@ struct Sync {
                     isDirty ? .on : .off,
                     isFailed ? .on : .off,
                 ]],
-                values: [styledRepoPath(row.relativePath), hookCol, logCol]
+                values: [styledRepoPath(row.relativePath), hookCol]
             )
         }
 
@@ -190,23 +186,23 @@ struct Sync {
         let parent = (path as NSString).deletingLastPathComponent
         if !FS.isDirectory(parent) { _ = FS.createDirectory(parent) }
         let cloneURL = URLHelpers.cloneURL(from: url, protocol: cloneProtocol)
-        let (_, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"], timeout: 60)
-        return exitCode == 0 ? .synced : .failed("clone failed")
+        let (output, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"], timeout: 60)
+        return exitCode == 0 ? .synced : .failed("clone failed: \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
     }
 
     private static func pullRepo(path: String) -> SyncOutcome {
         let (statusOutput, _) = Exec.git("status", "--porcelain", at: path)
         if !statusOutput.isEmpty { return .skipped }
 
-        let (_, fetchExit) = Exec.git("fetch", at: path, timeout: 60)
-        if fetchExit != 0 { return .failed("fetch failed") }
+        let (fetchOutput, fetchExit) = Exec.git("fetch", at: path, timeout: 60)
+        if fetchExit != 0 { return .failed("fetch failed: \(fetchOutput.trimmingCharacters(in: .whitespacesAndNewlines))") }
 
         let (behindOutput, _) = Exec.git("rev-list", "--count", "HEAD..@{u}", at: path)
         let behind = Int(behindOutput) ?? 0
         if behind == 0 { return .unchanged }
 
-        let (_, pullExit) = Exec.git("pull", "--ff-only", at: path, timeout: 60)
-        return pullExit == 0 ? .synced : .failed("pull failed")
+        let (pullOutput, pullExit) = Exec.git("pull", "--ff-only", at: path, timeout: 60)
+        return pullExit == 0 ? .synced : .failed("pull failed: \(pullOutput.trimmingCharacters(in: .whitespacesAndNewlines))")
     }
 
     // MARK: - Formatting
@@ -230,5 +226,12 @@ struct Sync {
         if results.skipped > 0 { parts.append(styled("\(results.skipped) skipped", .yellow)) }
         if results.failed > 0 { parts.append(styled("\(results.failed) failed", .red)) }
         Output.printSummary(parts)
+
+        if !results.failures.isEmpty {
+            print()
+            for failure in results.failures {
+                print("  " + styled("\u{2716}", .red) + " " + styled(failure.name, .bold) + " " + styled(failure.message, .dim))
+            }
+        }
     }
 }

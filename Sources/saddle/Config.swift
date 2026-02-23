@@ -2,14 +2,14 @@ import CLICore
 import Foundation
 
 struct Config {
-    static var configDir: String { FS.expandPath("~/.config/saddle") }
-    static var hooksDir: String { "\(configDir)/hooks" }
-    static var stateDir: String { FS.expandPath("~/.local/state/saddle") }
+    static var appDir: String { FS.expandPath("~/Library/Application Support/saddle") }
+    static var configDir: String { appDir }
+    static var hooksDir: String { "\(appDir)/hooks" }
+    static var stateDir: String { appDir }
 
-    static var manifestPath: String { "\(configDir)/manifest.toml" }
+    static var manifestPath: String { "\(appDir)/manifest.toml" }
     static var stateFile: String { "\(stateDir)/state.json" }
-    static var logFile: String { "\(stateDir)/saddle.log" }
-    static var hookLogsDir: String { "\(stateDir)/hooks" }
+
 
     static func printBanner(manifestPath: String?, mountDir: String, authenticatedUser: String? = nil) {
         var fields: [(String, String)] = []
