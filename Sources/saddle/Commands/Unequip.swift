@@ -4,16 +4,31 @@ import Foundation
 
 struct Unequip: ParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Uninstall and remove a repo from the manifest."
+        abstract: "Remove a repo from the manifest."
     )
 
-    @Argument(help: "Normalized URL (host/owner/repo). Omit to detect from current directory.")
+    @Argument(help: "Repo name, or full URL (host/owner/repo). Omit to detect from current directory.")
     var repo: String?
 
     func run() throws {
         let normalized: String
         if let arg = repo {
-            normalized = URLHelpers.normalize(arg)
+            let raw = URLHelpers.normalize(arg)
+            if !raw.contains("/") {
+                switch GitHelpers.resolveBareName(raw, in: FS.expandPath(Parser.defaultMount)) {
+                case .resolved(let url):
+                    normalized = url
+                case .ambiguous(let matches):
+                    Output.error("Bare name \"\(arg)\" is ambiguous:")
+                    for match in matches { print("  \(match)") }
+                    throw ExitCode.failure
+                case .notFound:
+                    Output.error("Cannot resolve bare name \"\(arg)\" — provide a full URL (e.g. github.com/owner/\(arg))")
+                    throw ExitCode.failure
+                }
+            } else {
+                normalized = raw
+            }
         } else {
             guard let detected = GitHelpers.detectRemoteFromCurrentDirectory() else {
                 Output.error("No git remote found in current directory")
@@ -33,25 +48,6 @@ struct Unequip: ParsableCommand {
             throw ExitCode.failure
         }
 
-        // Find repo on disk
-        let repoPath = GitHelpers.findRepoOnDisk(url: normalized, in: manifest.mount)
-
-        // Run uninstall hook
-        if let repoPath, let resolution = HookResolver.resolve(for: normalized, lifecycle: .uninstall) {
-            let spinner = BrailleSpinner(label: "Running uninstall hook\u{2026}")
-            spinner.start()
-            let result = HookResolver.execute(resolution, at: repoPath)
-            spinner.stop()
-
-            if case .ran(_, let exitCode) = result, exitCode != 0 {
-                Output.warning("Uninstall hook failed (exit \(exitCode))")
-                print(styled("  /usr/bin/log show --predicate 'subsystem == \"com.ansilithic.saddle\"' --last 5m", .dim))
-            } else {
-                print(styled("Uninstalled", .yellow) + " " + resolution.hookName)
-            }
-        }
-
-        // Remove from manifest
         manifest.repos.remove(at: index)
         try Parser.save(manifest, to: manifestPath)
         print(styled("Unequipped", .yellow) + " " + normalized)

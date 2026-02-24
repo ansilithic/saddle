@@ -42,6 +42,28 @@ enum GitHelpers {
         return nil
     }
 
+    enum BareNameResult {
+        case resolved(String)
+        case ambiguous([String])
+        case notFound
+    }
+
+    static func resolveBareName(_ name: String, in devDir: String) -> BareNameResult {
+        let discoveredPaths = FS.findRepos(in: devDir)
+        var matches: [String] = []
+        for repoPath in discoveredPaths {
+            let dirName = (repoPath as NSString).lastPathComponent
+            guard dirName.lowercased() == name.lowercased() else { continue }
+            let (output, rc) = Exec.git("remote", "get-url", "origin", at: repoPath)
+            if rc == 0, !output.isEmpty {
+                matches.append(URLHelpers.normalize(output))
+            }
+        }
+        if matches.count == 1 { return .resolved(matches[0]) }
+        if matches.count > 1 { return .ambiguous(matches) }
+        return .notFound
+    }
+
     static func info(at path: String) -> GitInfo {
         let (rawRemote, remoteRC) = Exec.git("remote", "get-url", "origin", at: path)
         let remoteURL = remoteRC == 0 && !rawRemote.isEmpty ? rawRemote : nil

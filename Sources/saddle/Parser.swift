@@ -91,7 +91,7 @@ struct Parser {
         }
         lines.append("")
         lines.append("[repos]")
-        for repo in manifest.repos {
+        for repo in manifest.repos.sorted() {
             lines.append("\"\(repo)\"")
         }
         lines.append("")
