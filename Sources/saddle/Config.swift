@@ -2,7 +2,7 @@ import CLICore
 import Foundation
 
 struct Config {
-    static var appDir: String { FS.expandPath("~/Library/Application Support/saddle") }
+    static var appDir: String { FS.expandPath("~/Library/Application Support/com.ansilithic.saddle") }
     static var configDir: String { appDir }
     static var hooksDir: String { "\(appDir)/hooks" }
     static var stateDir: String { appDir }

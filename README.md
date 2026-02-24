@@ -33,7 +33,7 @@ saddle equip https://github.com/user/cool-cli
 Or create the manifest directly:
 
 ```toml
-# ~/Library/Application Support/saddle/manifest.toml
+# ~/Library/Application Support/com.ansilithic.saddle/manifest.toml
 mount = "~/Developer"
 
 [repos]
@@ -55,7 +55,7 @@ Then sync everything with `saddle up`
 Optional per-repo scripts that run during sync. Each hook is a single `hook.sh` file with functions for different lifecycle phases. The script's working directory is the repo itself.
 
 ```
-~/Library/Application Support/saddle/hooks/user-dotfiles/hook.sh
+~/Library/Application Support/com.ansilithic.saddle/hooks/user-dotfiles/hook.sh
 ```
 
 ```bash
@@ -78,7 +78,7 @@ health() {
 - `uninstall` — runs on `saddle unequip`
 - `health` — checks if the tool is properly installed
 
-Hook names are derived from the repo URL: `github.com/user/dotfiles` becomes `user-dotfiles`. Scripts must be executable. Output is logged to `~/Library/Application Support/saddle/hooks/`.
+Hook names are derived from the repo URL: `github.com/user/dotfiles` becomes `user-dotfiles`. Scripts must be executable. Output is logged to `~/Library/Application Support/com.ansilithic.saddle/hooks/`.
 
 ## GitHub and GitLab Integration
 
