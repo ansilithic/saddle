@@ -6,6 +6,8 @@ struct ForgeHTTP: Sendable {
     let baseURL: String
     let acceptHeader: String
 
+    private static let session = URLSession(configuration: .ephemeral)
+
     func get(_ path: String, token: String, params: [(String, String)] = []) -> Data? {
         var urlString = baseURL + path
         if !params.isEmpty {
@@ -21,7 +23,7 @@ struct ForgeHTTP: Sendable {
 
         nonisolated(unsafe) var result: Data?
         let sem = DispatchSemaphore(value: 0)
-        URLSession.shared.dataTask(with: request) { data, response, _ in
+        Self.session.dataTask(with: request) { data, response, _ in
             if let http = response as? HTTPURLResponse, http.statusCode == 200 {
                 result = data
             }
