@@ -32,6 +32,10 @@ struct GitHubUser: Decodable {
     let login: String
 }
 
+struct GitLabUser: Decodable {
+    let username: String
+}
+
 struct GitLabProject: Decodable {
     let pathWithNamespace: String
     let visibility: String?

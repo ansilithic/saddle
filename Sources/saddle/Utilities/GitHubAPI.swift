@@ -10,7 +10,7 @@ struct GitHub: ForgeProvider, Sendable {
     )
 
     func resolveToken() -> String? {
-        let (output, rc) = Exec.run("/usr/bin/env", args: ["gh", "auth", "token"])
+        let (output, rc) = Exec.run("/usr/bin/env", args: ["gh", "auth", "token"], timeout: 3)
         if rc == 0, !output.isEmpty { return output }
         if let envToken = ProcessInfo.processInfo.environment["GITHUB_TOKEN"],
            !envToken.isEmpty { return envToken }
@@ -22,7 +22,7 @@ struct GitHub: ForgeProvider, Sendable {
         return nil
     }
 
-    func fetchRepos(token: String) -> ForgeResult {
+    func fetchRepos(token: String, declaredPaths _: [String]) -> ForgeResult {
         nonisolated(unsafe) var personalRepos: [GitHubRepo] = []
         nonisolated(unsafe) var collabRepos: [GitHubRepo] = []
         nonisolated(unsafe) var starredRepos: [GitHubRepo] = []
@@ -40,10 +40,7 @@ struct GitHub: ForgeProvider, Sendable {
                     ("affiliation", "collaborator"),
                 ])
             } else if i == 2 {
-                if let data = http.get("/user/orgs", token: token),
-                   let decoded = try? JSONDecoder().decode([GitHubOrg].self, from: data) {
-                    orgs = decoded
-                }
+                orgs = http.getPaginated("/user/orgs", token: token)
             } else if i == 3 {
                 if let data = http.get("/user", token: token),
                    let decoded = try? JSONDecoder().decode(GitHubUser.self, from: data) {

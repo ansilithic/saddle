@@ -20,7 +20,7 @@ struct Info: ParsableCommand {
         }
 
         let devDir = manifest?.mount ?? FS.expandPath(Parser.defaultMount)
-        let forgeResult = Forge.fetchAllRepos()
+        let forgeResult = Forge.fetchAllRepos(declaredURLs: manifest?.repos ?? [])
 
         spinner.stop()
 

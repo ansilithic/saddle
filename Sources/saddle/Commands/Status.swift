@@ -181,7 +181,7 @@ struct Status: ParsableCommand {
         let visGroup = DispatchGroup()
         visGroup.enter()
         DispatchQueue.global().async {
-            forgeResult = Forge.fetchAllRepos()
+            forgeResult = Forge.fetchAllRepos(declaredURLs: declaredURLs)
             visGroup.leave()
         }
 
@@ -522,8 +522,7 @@ struct Status: ParsableCommand {
 
     private func pushTimeColor(_ time: String) -> Color {
         if time.contains("hour") || time.contains("minute") || time.contains("second") { return .green }
-        if time.hasSuffix("days ago"), let n = Int(time.split(separator: " ").first ?? ""), n <= 7 { return .cyan }
-        if time.contains("day") { return .yellow }
+        if time.contains("day"), let n = Int(time.split(separator: " ").first ?? ""), n <= 7 { return .cyan }
         if time.contains("week") { return .yellow }
         if time.contains("month") { return .orange }
         return .dim
