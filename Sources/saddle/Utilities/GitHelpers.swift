@@ -64,9 +64,13 @@ enum GitHelpers {
         return .notFound
     }
 
-    static func info(at path: String) -> GitInfo {
+    static func info(at path: String, fetch: Bool = false) -> GitInfo {
         let (rawRemote, remoteRC) = Exec.git("remote", "get-url", "origin", at: path)
         let remoteURL = remoteRC == 0 && !rawRemote.isEmpty ? rawRemote : nil
+
+        if fetch && remoteURL != nil {
+            _ = Exec.git("fetch", at: path, timeout: 10)
+        }
 
         let (statusOutput, statusRC) = Exec.git("status", "--porcelain=v2", "--branch", at: path)
         let lines = statusRC == 0 ? statusOutput.components(separatedBy: "\n") : []

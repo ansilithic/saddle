@@ -52,6 +52,9 @@ struct Status: ParsableCommand {
     @Flag(help: "Show only active (non-archived) repos.")
     var active = false
 
+    @Flag(name: .long, help: "Fetch all remotes regardless of cache age.")
+    var forceFetch = false
+
     @Option(help: "Show only repos owned by <owner>.")
     var owner: String?
 
@@ -65,7 +68,7 @@ struct Status: ParsableCommand {
 
     func run() {
         let spinner = ProgressSpinner()
-        spinner.label = styled("Scanning repos\u{2026}", .dim)
+        spinner.label = styled("Scanning\u{2026}", .dim)
         spinner.start()
 
         let manifest: Manifest?
@@ -79,7 +82,8 @@ struct Status: ParsableCommand {
         let devDir = manifest?.mount ?? FS.expandPath(Parser.defaultMount)
         let declaredURLs = manifest?.repos ?? []
 
-        let (allRepos, _, forgeResult) = gatherRepos(manifest: manifest, devDir: devDir, declaredURLs: declaredURLs, spinner: spinner)
+        let shouldFetch = forceFetch || State.shouldFetch()
+        let (allRepos, _, forgeResult) = gatherRepos(manifest: manifest, devDir: devDir, declaredURLs: declaredURLs, spinner: spinner, fetch: shouldFetch)
 
         spinner.stop()
 
@@ -174,7 +178,7 @@ struct Status: ParsableCommand {
 
     // MARK: - Data Gathering
 
-    private func gatherRepos(manifest: Manifest?, devDir: String, declaredURLs: [String], spinner: ProgressSpinner) -> (repos: [RepoInfo], missingURLs: [String], forge: ForgeResult) {
+    private func gatherRepos(manifest: Manifest?, devDir: String, declaredURLs: [String], spinner: ProgressSpinner, fetch: Bool) -> (repos: [RepoInfo], missingURLs: [String], forge: ForgeResult) {
         let normalizedDeclared = Set(declaredURLs.map { URLHelpers.normalize($0) })
 
         nonisolated(unsafe) var forgeResult = ForgeResult()
@@ -188,6 +192,7 @@ struct Status: ParsableCommand {
         let discoveredPaths = FS.findRepos(in: devDir)
         let repoCount = discoveredPaths.count
 
+        // Phase 1: scan local state (no network)
         let emptyGit = GitHelpers.GitInfo(remoteURL: nil, branch: "", status: "", ahead: 0, behind: 0, lastCommitTime: "")
         var partials = Array(repeating: PartialInfo(relativePath: "", fullPath: "", git: emptyGit, saddled: false, hasHook: false), count: repoCount)
 
@@ -208,9 +213,84 @@ struct Status: ParsableCommand {
 
                 scanLock.lock()
                 scanned += 1
-                spinner.label = styled("[\(scanned)/\(repoCount)]", .dim) + " " + styled("\(repoCount - scanned) remaining\u{2026}", .dim)
+                spinner.status = styled("[\(scanned)/\(repoCount)]", .dim)
                 scanLock.unlock()
             }
+        }
+
+        // Reachability check for non-standard hosts
+        let wellKnownHosts: Set<String> = ["github.com", "gitlab.com"]
+        let customHosts = Set(
+            partials.compactMap { $0.git.remoteURL.map { URLHelpers.host(from: $0) } }
+        ).subtracting(wellKnownHosts)
+        nonisolated(unsafe) var unreachableHosts: Set<String> = []
+        if fetch, !customHosts.isEmpty {
+            let reachLock = NSLock()
+            let sortedHosts = customHosts.sorted()
+            DispatchQueue.concurrentPerform(iterations: sortedHosts.count) { i in
+                let host = sortedHosts[i]
+                let http = ForgeHTTP(baseURL: "https://\(host)/api/v4", acceptHeader: "application/json")
+                if !http.reachable(timeout: 3) {
+                    reachLock.lock()
+                    unreachableHosts.insert(host)
+                    reachLock.unlock()
+                }
+            }
+        }
+
+        // Phase 2: fetch remotes (network)
+        if fetch {
+            let fetchLock = NSLock()
+            nonisolated(unsafe) var fetched = 0
+            nonisolated(unsafe) var failedCount = 0
+            let fetchable = partials.enumerated().filter { $0.element.git.remoteURL != nil }
+            let fetchCount = fetchable.count
+
+            spinner.label = styled("Fetching\u{2026}", .bold) + "  " + styled("\(fetchCount) repos", .dim)
+            spinner.status = styled("[0/\(fetchCount)]", .dim)
+
+            partials.withUnsafeMutableBufferPointer { buf in
+                nonisolated(unsafe) let buffer = buf
+                DispatchQueue.concurrentPerform(iterations: fetchCount) { fi in
+                    let (i, partial) = fetchable[fi]
+                    let repoPath = discoveredPaths[i]
+                    let host = partial.git.remoteURL.map { URLHelpers.host(from: $0) } ?? ""
+
+                    spinner.activate("\(fi)", name: partial.relativePath)
+
+                    let fetchExit: Int32
+                    let fetchOutput: String
+                    if unreachableHosts.contains(host) {
+                        fetchExit = 1
+                        fetchOutput = "\(host) unreachable"
+                    } else {
+                        (fetchOutput, fetchExit) = Exec.git("fetch", at: repoPath, timeout: 30)
+                    }
+
+                    if fetchExit == 0 {
+                        let git = GitHelpers.info(at: repoPath)
+                        let normalized = git.remoteURL.map { URLHelpers.normalize($0) }
+                        let saddled = normalized.map { normalizedDeclared.contains($0) } ?? false
+                        let hasHook = git.remoteURL.map { HookResolver.hasHook(for: $0) } ?? false
+                        let relativePath = String(repoPath.dropFirst(devDir.count + 1))
+                        buffer[i] = PartialInfo(relativePath: relativePath, fullPath: repoPath, git: git, saddled: saddled, hasHook: hasHook)
+                    }
+
+                    fetchLock.lock()
+                    fetched += 1
+                    if fetchExit != 0 {
+                        failedCount += 1
+                        spinner.fail("\(fi)", reason: fetchOutput.trimmingCharacters(in: .whitespacesAndNewlines))
+                    } else {
+                        spinner.complete("\(fi)")
+                    }
+                    let failStr = failedCount > 0 ? "  " + styled("\(failedCount) failed", .red) : ""
+                    spinner.status = styled("[\(fetched)/\(fetchCount)]", .dim) + failStr
+                    fetchLock.unlock()
+                }
+            }
+
+            State.touchLastFetch()
         }
 
         visGroup.wait()

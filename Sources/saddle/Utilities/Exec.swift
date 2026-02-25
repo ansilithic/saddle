@@ -34,9 +34,10 @@ struct Exec {
         var timeoutWorkItem: DispatchWorkItem?
 
         if let timeout = timeout {
+            let pid = task.processIdentifier
             let item = DispatchWorkItem {
                 timedOut = true
-                task.terminate()
+                kill(pid, SIGKILL)
             }
             timeoutWorkItem = item
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: item)
@@ -77,9 +78,10 @@ struct Exec {
         var timeoutWorkItem: DispatchWorkItem?
 
         if let timeout = timeout {
+            let pid = task.processIdentifier
             let item = DispatchWorkItem {
                 timedOut = true
-                task.terminate()
+                kill(pid, SIGKILL)
             }
             timeoutWorkItem = item
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: item)

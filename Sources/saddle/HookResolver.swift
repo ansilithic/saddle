@@ -5,6 +5,7 @@ import os
 enum HookResult {
     case pending
     case ran(name: String, exitCode: Int32)
+    case skipped(name: String)
 }
 
 enum Lifecycle {
@@ -135,7 +136,10 @@ enum HookResolver {
         let hook = resolution.hookName
         let phase = "\(resolution.lifecycle)"
 
-        if exitCode == 0 {
+        if exitCode == 2 {
+            logger.info("[\(hook, privacy: .public)] \(phase, privacy: .public) skipped\n\(output, privacy: .public)")
+            return .skipped(name: resolution.hookName)
+        } else if exitCode == 0 {
             logger.info("[\(hook, privacy: .public)] \(phase, privacy: .public) ok\n\(output, privacy: .public)")
         } else {
             logger.error("[\(hook, privacy: .public)] \(phase, privacy: .public) exit \(exitCode)\n\(output, privacy: .public)")

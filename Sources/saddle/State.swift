@@ -3,6 +3,7 @@ import Foundation
 struct SaddleState: Codable {
     var version: Int = 1
     var lastRun: String?
+    var lastFetch: String?
 }
 
 struct State {
@@ -32,5 +33,20 @@ struct State {
         var state = load()
         state.lastRun = DateFormatting.iso8601.string(from: Date())
         save(state)
+    }
+
+    static func touchLastFetch() {
+        var state = load()
+        state.lastFetch = DateFormatting.iso8601.string(from: Date())
+        save(state)
+    }
+
+    static func shouldFetch() -> Bool {
+        let state = load()
+        guard let stamp = state.lastFetch,
+              let date = DateFormatting.iso8601.date(from: stamp) else {
+            return true
+        }
+        return Date().timeIntervalSince(date) > 86400
     }
 }
