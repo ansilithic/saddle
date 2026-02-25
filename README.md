@@ -1,6 +1,6 @@
 # saddle
 
-Repo wrangler for macOS — track, organize, and sync every git repository locally.
+Repo wrangler for macOS — track, organize, and sync every git repository locally. Quick lookups in any dumb terminal.
 
 ![saddle](assets/status.png)
 
@@ -86,7 +86,7 @@ Saddle delegates authentication to the [gh](https://cli.github.com/) and [glab](
 
 ## AI agent usage
 
-Where [gh](https://cli.github.com/) and [glab](https://gitlab.com/gitlab-org/cli) are windows into the remote, saddle is the local layer — what's cloned, what's dirty, what's out of sync. Together they give AI agents full repo visibility across both sides. See [SKILL.md](SKILL.md) for agent-specific instructions.
+Where [gh](https://cli.github.com/) and [glab](https://gitlab.com/gitlab-org/cli) are windows into the remote, saddle is the local layer — what's cloned, what's dirty, what's out of sync. Beautiful ANSI for humans checking what agents are up to, structured JSON for agents that need a centralized dashboard. Together they give full repo visibility across both sides. See [SKILL.md](SKILL.md) for agent-specific instructions.
 
 ## License
 

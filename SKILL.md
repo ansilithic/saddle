@@ -4,7 +4,7 @@ Instructions for AI coding agents using saddle to manage local git repositories.
 
 ## What saddle does
 
-Saddle provides visibility into every git repo in a local development directory and syncs repos from a declared manifest. It complements `gh` — where `gh` handles remote operations (PRs, issues, API calls), saddle covers the local side.
+Saddle provides visibility into every git repo in a local development directory and syncs repos from a declared manifest. ANSI for humans at the terminal, JSON for agents on the wire — a centralized dashboard for quick lookups. It complements `gh` — where `gh` handles remote operations (PRs, issues, API calls), saddle covers the local side.
 
 ## When to use saddle vs gh
 
