@@ -10,6 +10,9 @@ struct Up: ParsableCommand {
     @Flag(name: .long, help: "Skip running hooks after sync.")
     var noHooks = false
 
+    @Flag(name: .long, help: "Run hooks for all repos, even if sync failed.")
+    var forceHooks = false
+
     func run() throws {
         let path = Config.manifestPath
         guard FS.exists(path) else {
@@ -31,7 +34,7 @@ struct Up: ParsableCommand {
 
         print("  \(styled("\(manifest.repos.count) repos declared, mount at \(FS.shortenPath(manifest.mount))", .dim))")
 
-        Sync.syncDeclaredRepos(manifest.repos, mount: manifest.mount, cloneProtocol: manifest.cloneProtocol, runHooks: !noHooks)
+        Sync.syncDeclaredRepos(manifest.repos, mount: manifest.mount, cloneProtocol: manifest.cloneProtocol, runHooks: !noHooks, forceHooks: forceHooks)
 
         State.touchLastRun()
     }

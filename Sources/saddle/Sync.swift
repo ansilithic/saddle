@@ -9,7 +9,7 @@ struct Sync {
         let hookResult: HookResult?
     }
 
-    static func syncDeclaredRepos(_ urls: [String], mount: String, cloneProtocol: Manifest.CloneProtocol = .ssh, runHooks: Bool = true) {
+    static func syncDeclaredRepos(_ urls: [String], mount: String, cloneProtocol: Manifest.CloneProtocol = .ssh, runHooks: Bool = true, forceHooks: Bool = false) {
         let devDir = mount
         nonisolated(unsafe) var results = SyncResult()
         var rows: [RowResult] = []
@@ -97,7 +97,7 @@ struct Sync {
                     }
                 } else if let existingPath = entry.path {
                     outcome = pullRepo(path: existingPath)
-                    if case .failed = outcome {
+                    if case .failed = outcome, !forceHooks {
                         resolvedPath = nil
                     }
                 } else {
@@ -194,7 +194,7 @@ struct Sync {
         let (statusOutput, _) = Exec.git("status", "--porcelain", at: path)
         if !statusOutput.isEmpty { return .skipped }
 
-        let (fetchOutput, fetchExit) = Exec.git("fetch", at: path, timeout: 60)
+        let (fetchOutput, fetchExit) = Exec.git("fetch", at: path, timeout: 10)
         if fetchExit != 0 { return .failed("fetch failed: \(fetchOutput.trimmingCharacters(in: .whitespacesAndNewlines))") }
 
         let (behindOutput, _) = Exec.git("rev-list", "--count", "HEAD..@{u}", at: path)
