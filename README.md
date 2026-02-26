@@ -2,7 +2,7 @@
 
 Repo wrangler for macOS — track, organize, and sync every git repository locally. Quick lookups in any dumb terminal.
 
-![saddle](assets/status.png)
+![saddle](assets/status.gif)
 
 ## Install
 
@@ -44,11 +44,11 @@ mount = "~/Developer"
 
 Then sync everything with `saddle up`
 
-![saddle up](assets/up.png)
+![saddle up](assets/up.gif)
 
 ## Commands
 
-<img src="assets/help.png" width="500">
+![saddle help](assets/help.png)
 
 ### Hooks
 

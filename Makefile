@@ -12,7 +12,7 @@ COMPLETIONS_DIR := $(shell zsh -c 'for d in $${fpath}; do if [[ "$$d" == $(HOME)
 BINARY := saddle
 
 .DEFAULT_GOAL := help
-.PHONY: build install uninstall health clean rebuild test completions help
+.PHONY: build build-debug install uninstall health clean rebuild test completions demo help
 
 # ============================================================
 # Build
@@ -21,6 +21,14 @@ build:
 	@echo "Building $(BINARY)..."
 	@swift build -c release
 	@echo "$(GREEN)Build complete!$(RESET) Binary at .build/release/$(BINARY)"
+
+# ============================================================
+# Build (debug) — needed for SADDLE_FORGE_MOCK support in demos
+# ============================================================
+build-debug:
+	@echo "Building $(BINARY) (debug)..."
+	@swift build
+	@echo "$(GREEN)Debug build complete!$(RESET)"
 
 # ============================================================
 # Install
@@ -98,6 +106,12 @@ completions:
 		|| echo "$(YELLOW)Warning:$(RESET) $(COMPLETIONS_DIR) is not in your fpath"
 
 # ============================================================
+# Demo — generate PNG screenshots and GIF recordings
+# ============================================================
+demo: build-debug
+	@./scripts/demo.sh
+
+# ============================================================
 # Help
 # ============================================================
 help:
@@ -112,6 +126,7 @@ help:
 	@echo "  $(CYAN)health$(RESET)    $(GRAY)-$(RESET) $(GREEN)Check if binary is installed$(RESET)"
 	@echo "  $(CYAN)test$(RESET)         $(GRAY)-$(RESET) $(GREEN)Run tests$(RESET)"
 	@echo "  $(CYAN)completions$(RESET)  $(GRAY)-$(RESET) $(GREEN)Generate zsh completions$(RESET)"
+	@echo "  $(CYAN)demo$(RESET)         $(GRAY)-$(RESET) $(GREEN)Generate PNG and GIF demo assets$(RESET)"
 	@echo "  $(CYAN)clean$(RESET)        $(GRAY)-$(RESET) $(GREEN)Remove build artifacts$(RESET)"
 	@echo "  $(CYAN)help$(RESET)         $(GRAY)-$(RESET) $(GREEN)Show this help message (default)$(RESET)"
 	@echo ""

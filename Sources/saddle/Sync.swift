@@ -35,7 +35,7 @@ struct Sync {
         DispatchQueue.concurrentPerform(iterations: scanCount) { i in
             let repoPath = discoveredPaths[i]
 
-            let (output, rc) = Exec.git("remote", "get-url", "origin", at: repoPath)
+            let (output, rc) = Exec.git("config", "remote.origin.url", at: repoPath)
 
             scanLock.lock()
             scannedCount += 1

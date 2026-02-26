@@ -13,7 +13,7 @@ enum GitHelpers {
 
     static func detectRemoteFromCurrentDirectory() -> String? {
         let cwd = FileManager.default.currentDirectoryPath
-        let (output, exitCode) = Exec.git("remote", "get-url", "origin", at: cwd)
+        let (output, exitCode) = Exec.git("config", "remote.origin.url", at: cwd)
         guard exitCode == 0, !output.isEmpty else { return nil }
         return URLHelpers.normalize(output)
     }
@@ -24,7 +24,7 @@ enum GitHelpers {
         // Check expected path first
         let expectedPath = "\(devDir)/\(URLHelpers.pathAfterHost(from: url))"
         if FS.isDirectory(expectedPath) {
-            let (output, rc) = Exec.git("remote", "get-url", "origin", at: expectedPath)
+            let (output, rc) = Exec.git("config", "remote.origin.url", at: expectedPath)
             if rc == 0, URLHelpers.normalize(output) == normalized {
                 return expectedPath
             }
@@ -33,7 +33,7 @@ enum GitHelpers {
         // Scan mount dir for matching remote
         let discoveredPaths = FS.findRepos(in: devDir)
         for repoPath in discoveredPaths {
-            let (output, rc) = Exec.git("remote", "get-url", "origin", at: repoPath)
+            let (output, rc) = Exec.git("config", "remote.origin.url", at: repoPath)
             if rc == 0, URLHelpers.normalize(output) == normalized {
                 return repoPath
             }
@@ -54,7 +54,7 @@ enum GitHelpers {
         for repoPath in discoveredPaths {
             let dirName = (repoPath as NSString).lastPathComponent
             guard dirName.lowercased() == name.lowercased() else { continue }
-            let (output, rc) = Exec.git("remote", "get-url", "origin", at: repoPath)
+            let (output, rc) = Exec.git("config", "remote.origin.url", at: repoPath)
             if rc == 0, !output.isEmpty {
                 matches.append(URLHelpers.normalize(output))
             }
@@ -65,7 +65,7 @@ enum GitHelpers {
     }
 
     static func info(at path: String, fetch: Bool = false) -> GitInfo {
-        let (rawRemote, remoteRC) = Exec.git("remote", "get-url", "origin", at: path)
+        let (rawRemote, remoteRC) = Exec.git("config", "remote.origin.url", at: path)
         let remoteURL = remoteRC == 0 && !rawRemote.isEmpty ? rawRemote : nil
 
         if fetch && remoteURL != nil {
