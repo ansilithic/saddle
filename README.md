@@ -1,6 +1,6 @@
 # saddle
 
-Repo wrangler for macOS — track, organize, and sync every git repository locally. Quick lookups in any dumb terminal.
+Repo wrangler for macOS - track, organize, and sync every git repository locally (and remotely).
 
 ![saddle](assets/status.gif)
 
