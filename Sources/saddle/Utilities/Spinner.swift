@@ -110,10 +110,15 @@ final class ProgressSpinner: @unchecked Sendable {
     }
 
     func fail(_ id: String, reason: String) {
+        let sanitized = reason
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .last
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespaces) ?? reason
         lock.withLock {
             _feedItems[id]?.state = .failed
             _feedItems[id]?.endTime = CFAbsoluteTimeGetCurrent()
-            _feedItems[id]?.detail = reason
+            _feedItems[id]?.detail = sanitized
         }
     }
 

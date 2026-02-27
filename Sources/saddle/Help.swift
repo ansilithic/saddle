@@ -19,6 +19,7 @@ enum Help {
 
     static let commands: [Entry] = [
         Entry(name: "status", args: "[filters]", description: "Show status of all repos", tag: "default"),
+        Entry(name: "health", args: "[filters]", description: "Show file-presence health for all repos", tag: nil),
         Entry(name: "up", args: "", description: "Clone missing repos, pull updates, and run hooks", tag: nil),
         Entry(name: "equip", args: "[<repo>]", description: "Add a repo to the manifest", tag: nil),
         Entry(name: "unequip", args: "[<repo>]", description: "Remove a repo from the manifest", tag: nil),

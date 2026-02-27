@@ -249,7 +249,7 @@ struct Sync {
         if !FS.isDirectory(parent) { _ = FS.createDirectory(parent) }
         let cloneURL = URLHelpers.cloneURL(from: url, protocol: cloneProtocol)
         let (output, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"], timeout: 60)
-        return exitCode == 0 ? .synced : .failed("clone failed: \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
+        return exitCode == 0 ? .synced : .failed("clone failed: \(lastMeaningfulLine(output))")
     }
 
     private static func pullRepo(path: String) -> SyncOutcome {
@@ -257,14 +257,19 @@ struct Sync {
         if !statusOutput.isEmpty { return .skipped }
 
         let (fetchOutput, fetchExit) = Exec.git("fetch", at: path, timeout: 30)
-        if fetchExit != 0 { return .failed("fetch failed: \(fetchOutput.trimmingCharacters(in: .whitespacesAndNewlines))") }
+        if fetchExit != 0 { return .failed("fetch failed: \(lastMeaningfulLine(fetchOutput))") }
 
         let (behindOutput, _) = Exec.git("rev-list", "--count", "HEAD..@{u}", at: path)
         let behind = Int(behindOutput) ?? 0
         if behind == 0 { return .unchanged }
 
         let (pullOutput, pullExit) = Exec.git("pull", "--ff-only", at: path, timeout: 60)
-        return pullExit == 0 ? .synced : .failed("pull failed: \(pullOutput.trimmingCharacters(in: .whitespacesAndNewlines))")
+        return pullExit == 0 ? .synced : .failed("pull failed: \(lastMeaningfulLine(pullOutput))")
+    }
+
+    private static func lastMeaningfulLine(_ output: String) -> String {
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
+        return lines.last.map { String($0).trimmingCharacters(in: .whitespaces) } ?? output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Formatting

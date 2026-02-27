@@ -51,6 +51,32 @@ struct RemoteRepoInfo: Codable {
     let isArchived: Bool
 }
 
+struct HealthInfo {
+    let relativePath: String
+    let fullPath: String
+    let remoteURL: String?
+    let owner: String
+    let saddled: Bool
+    let hasReadme: Bool
+    let hasGitignore: Bool
+    let hasMakefile: Bool
+    let hasLicense: Bool
+    let hasHealthHook: Bool
+    let hookPassed: Bool
+
+    var missingFiles: [String] {
+        var missing: [String] = []
+        if !hasReadme { missing.append("README.md") }
+        if !hasGitignore { missing.append(".gitignore") }
+        if !hasMakefile { missing.append("Makefile") }
+        if !hasLicense { missing.append("LICENSE") }
+        return missing
+    }
+
+    var isHealthy: Bool { missingFiles.isEmpty && (!hasHealthHook || hookPassed) }
+    var isStray: Bool { !saddled }
+}
+
 struct RepoInfo {
     let relativePath: String
     let fullPath: String
