@@ -19,11 +19,6 @@ struct GitLab: ForgeProvider, Sendable {
         if rc == 0, !output.isEmpty { return output }
         if let envToken = ProcessInfo.processInfo.environment["GITLAB_TOKEN"],
            !envToken.isEmpty { return envToken }
-        let tokenFile = Config.configDir + "/gitlab-token"
-        if let contents = FS.readFile(tokenFile) {
-            let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
-        }
         return nil
     }
 

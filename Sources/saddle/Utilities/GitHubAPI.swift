@@ -14,11 +14,6 @@ struct GitHub: ForgeProvider, Sendable {
         if rc == 0, !output.isEmpty { return output }
         if let envToken = ProcessInfo.processInfo.environment["GITHUB_TOKEN"],
            !envToken.isEmpty { return envToken }
-        let tokenFile = Config.configDir + "/github-token"
-        if let contents = FS.readFile(tokenFile) {
-            let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
-        }
         return nil
     }
 

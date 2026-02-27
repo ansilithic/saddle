@@ -27,8 +27,6 @@ enum Forge {
             .filter { !$0.isEmpty }
         let providers: [any ForgeProvider] = defaultProviders + extraHosts.sorted().map { GitLab(hostname: $0) }
 
-        ForgeHTTP.selfHostedHosts = extraHosts
-
         let pathsByHost = declaredURLs.reduce(into: [String: [String]]()) { result, url in
             let host = URLHelpers.host(from: url)
             let path = URLHelpers.pathAfterHost(from: url)

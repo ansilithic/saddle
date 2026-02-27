@@ -56,6 +56,17 @@ saddle equip            # adds current directory's repo
 
 Remove a repo from the manifest and run its uninstall hook if one exists.
 
+### `saddle health`
+
+Check file-presence health across all repos — README, .gitignore, Makefile, LICENSE. Repos with a `health()` hook function get a pass/fail indicator too.
+
+```sh
+saddle health                # all repos
+saddle health --equipped     # only manifest repos
+saddle health --unhealthy    # only repos missing files
+saddle health --owner <name> # filter by org/owner
+```
+
 ### `saddle info`
 
 Show saddle configuration: manifest path, mount directory, hook directory, authenticated forges.
@@ -64,9 +75,9 @@ Show saddle configuration: manifest path, mount directory, hook directory, authe
 
 | Path | Purpose |
 |------|---------|
-| `~/.config/saddle/manifest.toml` | Repo manifest |
-| `~/.config/saddle/hooks/` | Per-repo hook scripts (`hook.sh` with functions) |
-| `~/.local/state/saddle/` | Logs and state |
+| `~/Library/Application Support/com.ansilithic.saddle/manifest.toml` | Repo manifest |
+| `~/Library/Application Support/com.ansilithic.saddle/hooks/` | Per-repo hook scripts (`hook.sh` with functions) |
+| `~/Library/Application Support/com.ansilithic.saddle/state.json` | Last run/fetch timestamps |
 
 ## Tips for agents
 
