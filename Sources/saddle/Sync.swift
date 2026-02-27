@@ -200,9 +200,9 @@ struct Sync {
                 Indicator("synced", color: .blue),
                 Indicator("skipped (dirty)", color: .yellow),
                 Indicator("sync failed", color: .red),
+                Indicator("hooked", color: .green),
             ]),
             .column(TextColumn("Repo", sizing: .auto())),
-            .column(TextColumn("Hook", sizing: .auto())),
             .column(TextColumn("Time", sizing: .auto())),
         ])
 
@@ -213,17 +213,8 @@ struct Sync {
             if case .skipped = row.outcome { isDirty = true } else { isDirty = false }
             let isFailed: Bool
             if case .failed = row.outcome { isFailed = true } else { isFailed = false }
-
-            let hookCol: String
-            switch row.hookResult {
-            case .ran(let hookName, let exitCode):
-                let status = exitCode == 0 ? styled("ok", .green) : styled("exit \(exitCode)", .red)
-                hookCol = styled(hookName, .dim) + " " + status
-            case .skipped(let hookName):
-                hookCol = styled(hookName, .dim) + " " + styled("skipped", .dim)
-            case .pending, nil:
-                hookCol = styled("\u{2014}", .dim)
-            }
+            let isHooked: Bool
+            if case .ran = row.hookResult { isHooked = true } else { isHooked = false }
 
             let timeCol = styledDuration(row.duration)
 
@@ -232,12 +223,14 @@ struct Sync {
                     isSynced ? .on : .off,
                     isDirty ? .on : .off,
                     isFailed ? .on : .off,
+                    isHooked ? .on : .off,
                 ]],
-                values: [styledRepoPath(row.relativePath), hookCol, timeCol]
+                values: [styledRepoPath(row.relativePath), timeCol]
             )
         }
 
-        let counts: [[Int]] = [[results.synced, results.skipped, results.failed]]
+        let hookedCount = rows.filter { if case .ran = $0.hookResult { return true } else { return false } }.count
+        let counts: [[Int]] = [[results.synced, results.skipped, results.failed, hookedCount]]
         print(table.render(rows: tableRows, counts: counts, terminalWidth: terminalWidth()), terminator: "")
         printSyncSummary(results)
     }
