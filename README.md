@@ -1,6 +1,10 @@
 # saddle
 
-Repo wrangler for macOS - track, organize, and sync every git repository locally (and remotely).
+![Swift 6.0](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue)
+
+Repo wrangler for macOS — track, organize, and sync every git repository locally. Quick lookups in any dumb terminal.
 
 ![saddle](assets/status.gif)
 
@@ -50,6 +54,17 @@ Then sync everything with `saddle up`
 
 ![saddle help](assets/help.png)
 
+### Health
+
+Check file-presence health across all repos — README, .gitignore, Makefile, and LICENSE. Repos with a `health()` hook function get a pass/fail check too.
+
+```sh
+saddle health                # all repos
+saddle health --equipped     # only manifest repos
+saddle health --unhealthy    # only repos missing files
+saddle health --owner <name> # filter by org/owner
+```
+
 ### Hooks
 
 Optional per-repo scripts that run during sync. Each hook is a single `hook.sh` file with functions for different lifecycle phases. The script's working directory is the repo itself.
@@ -78,7 +93,9 @@ health() {
 - `uninstall` — runs on `saddle unequip`
 - `health` — checks if the tool is properly installed
 
-Hook names are derived from the repo URL: `github.com/user/dotfiles` becomes `user-dotfiles`. Scripts must be executable. Output is logged to `~/Library/Application Support/com.ansilithic.saddle/hooks/`.
+Hook names are derived from the repo URL: `github.com/user/dotfiles` becomes `user-dotfiles`. Scripts must be executable. Output is logged via macOS unified logging (subsystem `com.ansilithic.saddle`, category `hooks`).
+
+**Security note**: Hook scripts run with full user privileges. Only install hooks from sources that are trusted — a malicious hook script has the same access as the current user. Review hook scripts before marking them executable.
 
 ## GitHub and GitLab Integration
 

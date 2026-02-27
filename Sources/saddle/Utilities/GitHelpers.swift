@@ -1,3 +1,4 @@
+import ArgumentParser
 import CLICore
 import Foundation
 
@@ -62,6 +63,32 @@ enum GitHelpers {
         if matches.count == 1 { return .resolved(matches[0]) }
         if matches.count > 1 { return .ambiguous(matches) }
         return .notFound
+    }
+
+    static func resolveRepoArgument(_ arg: String?, mountDir: String = FS.expandPath(Parser.defaultMount)) throws -> String {
+        if let arg {
+            let raw = URLHelpers.normalize(arg)
+            if !raw.contains("/") {
+                switch resolveBareName(raw, in: mountDir) {
+                case .resolved(let url):
+                    return url
+                case .ambiguous(let matches):
+                    Output.error("Bare name \"\(arg)\" is ambiguous:")
+                    for match in matches { print("  \(match)") }
+                    throw ExitCode.failure
+                case .notFound:
+                    Output.error("Cannot resolve bare name \"\(arg)\" — provide a full URL (e.g. github.com/owner/\(arg))")
+                    throw ExitCode.failure
+                }
+            }
+            return raw
+        } else {
+            guard let detected = detectRemoteFromCurrentDirectory() else {
+                Output.error("No git remote found in current directory")
+                throw ExitCode.failure
+            }
+            return detected
+        }
     }
 
     static func info(at path: String, fetch: Bool = false) -> GitInfo {

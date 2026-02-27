@@ -6,17 +6,12 @@ struct ForgeHTTP: Sendable {
     let baseURL: String
     let acceptHeader: String
 
-    /// Hosts where TLS certificate validation is relaxed for self-hosted
-    /// instances using internal CAs not in the system trust store.
-    /// Populated by Forge.fetchAllRepos before any requests are made.
-    nonisolated(unsafe) static var selfHostedHosts: Set<String> = []
-
     private static let session: URLSession = {
         let config = URLSessionConfiguration.default
         if let proxies = CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any] {
             config.connectionProxyDictionary = proxies
         }
-        return URLSession(configuration: config, delegate: SelfHostedTrustDelegate.shared, delegateQueue: nil)
+        return URLSession(configuration: config)
     }()
 
     func reachable(timeout: TimeInterval = 2) -> Bool {
@@ -90,30 +85,5 @@ struct ForgeHTTP: Sendable {
             page += 1
         }
         return all
-    }
-}
-
-/// Relaxes TLS certificate validation only for self-hosted forge instances
-/// detected from the manifest. Public forges (github.com, gitlab.com) and
-/// all other hosts use standard system trust evaluation.
-private final class SelfHostedTrustDelegate: NSObject, URLSessionDelegate, Sendable {
-    static let shared = SelfHostedTrustDelegate()
-
-    func urlSession(
-        _ session: URLSession,
-        didReceive challenge: URLAuthenticationChallenge
-    ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              let trust = challenge.protectionSpace.serverTrust
-        else {
-            return (.performDefaultHandling, nil)
-        }
-
-        let host = challenge.protectionSpace.host
-        guard ForgeHTTP.selfHostedHosts.contains(host) else {
-            return (.performDefaultHandling, nil)
-        }
-
-        return (.useCredential, URLCredential(trust: trust))
     }
 }

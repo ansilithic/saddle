@@ -11,31 +11,7 @@ struct Equip: ParsableCommand {
     var repo: String?
 
     func run() throws {
-        let normalized: String
-        if let arg = repo {
-            let raw = URLHelpers.normalize(arg)
-            if !raw.contains("/") {
-                switch GitHelpers.resolveBareName(raw, in: FS.expandPath(Parser.defaultMount)) {
-                case .resolved(let url):
-                    normalized = url
-                case .ambiguous(let matches):
-                    Output.error("Bare name \"\(arg)\" is ambiguous:")
-                    for match in matches { print("  \(match)") }
-                    throw ExitCode.failure
-                case .notFound:
-                    Output.error("Cannot resolve bare name \"\(arg)\" — provide a full URL (e.g. github.com/owner/\(arg))")
-                    throw ExitCode.failure
-                }
-            } else {
-                normalized = raw
-            }
-        } else {
-            guard let detected = GitHelpers.detectRemoteFromCurrentDirectory() else {
-                Output.error("No git remote found in current directory")
-                throw ExitCode.failure
-            }
-            normalized = detected
-        }
+        let normalized = try GitHelpers.resolveRepoArgument(repo)
 
         let manifestPath = Config.manifestPath
         var manifest: Manifest
