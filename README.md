@@ -4,7 +4,7 @@
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue)
 
-Repo wrangler for macOS — track, organize, and sync every git repository locally. Quick lookups in any dumb terminal.
+Repo wrangler for macOS - track, organize, and sync every git repository locally (and remotely).
 
 ![saddle](assets/status.gif)
 
