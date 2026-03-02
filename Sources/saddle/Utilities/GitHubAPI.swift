@@ -17,7 +17,7 @@ struct GitHub: ForgeProvider, Sendable {
         return nil
     }
 
-    func fetchRepos(token: String, declaredPaths _: [String]) -> ForgeResult {
+    func fetchRepos(token: String, declaredPaths: [String]) -> ForgeResult {
         nonisolated(unsafe) var personalRepos: [GitHubRepo] = []
         nonisolated(unsafe) var collabRepos: [GitHubRepo] = []
         nonisolated(unsafe) var starredRepos: [GitHubRepo] = []
@@ -86,6 +86,28 @@ struct GitHub: ForgeProvider, Sendable {
             starredURLs.insert(key)
             if map[key] == nil {
                 map[key] = Self.extract(repo, role: "starred")
+            }
+        }
+
+        // Fetch declared repos not found via owned/collab/starred (e.g. third-party public repos)
+        let missingPaths = declaredPaths.filter { map["github.com/\($0)".lowercased()] == nil }
+        if !missingPaths.isEmpty {
+            var fetched = Array(repeating: (GitHubRepo?).none, count: missingPaths.count)
+            fetched.withUnsafeMutableBufferPointer { buf in
+                nonisolated(unsafe) let buffer = buf
+                DispatchQueue.concurrentPerform(iterations: missingPaths.count) { i in
+                    if let data = http.get("/repos/\(missingPaths[i])", token: token),
+                       let repo = try? JSONDecoder().decode(GitHubRepo.self, from: data) {
+                        buffer[i] = repo
+                    }
+                }
+            }
+            for repo in fetched {
+                guard let repo else { continue }
+                let key = "github.com/\(repo.fullName)".lowercased()
+                if map[key] == nil {
+                    map[key] = Self.extract(repo, role: "public")
+                }
             }
         }
 

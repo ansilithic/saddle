@@ -1,5 +1,6 @@
 import ArgumentParser
 import CLICore
+import Foundation
 
 @main
 struct Saddle: ParsableCommand {
@@ -11,6 +12,10 @@ struct Saddle: ParsableCommand {
     )
 
     static func main() {
+        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("com.ansilithic.saddle")
+        URLCache.shared = URLCache(memoryCapacity: 0, diskCapacity: 10_000_000, directory: cacheDir)
+
         let args = Array(CommandLine.arguments.dropFirst())
         let subcommands = Set(["status", "health", "up", "equip", "unequip", "manifest", "info", "completions"])
         let isTopLevel = !args.contains(where: { subcommands.contains($0) })
