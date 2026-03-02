@@ -8,7 +8,7 @@ RESET := \033[0m
 
 # Config
 BIN_DIR := /usr/local/bin
-COMPLETIONS_DIR := $(shell zsh -c 'for d in $${fpath}; do if [[ "$$d" == $(HOME)/* ]] && [[ -d "$$d" ]] && [[ -w "$$d" ]]; then echo "$$d"; exit 0; fi; done; echo "$(HOME)/Library/Application Support/zsh/completions"')
+COMPLETIONS_DIR := $(shell zsh -c 'for d in $${fpath}; do if [[ "$$d" == $(HOME)/* ]] && [[ -d "$$d" ]] && [[ -w "$$d" ]]; then echo "$$d"; exit 0; fi; done; echo "$(HOME)/Library/Application Support/com.apple.zsh/completions"')
 BINARY := saddle
 
 .DEFAULT_GOAL := help
