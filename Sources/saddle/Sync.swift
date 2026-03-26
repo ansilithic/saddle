@@ -252,7 +252,8 @@ struct Sync {
         let (fetchOutput, fetchExit) = Exec.git("fetch", at: path, timeout: 30)
         if fetchExit != 0 { return .failed("fetch failed: \(lastMeaningfulLine(fetchOutput))") }
 
-        let (behindOutput, _) = Exec.git("rev-list", "--count", "HEAD..@{u}", at: path)
+        let (behindOutput, behindExit) = Exec.git("rev-list", "--count", "HEAD..@{u}", at: path)
+        if behindExit != 0 { return .unchanged }
         let behind = Int(behindOutput) ?? 0
         if behind == 0 { return .unchanged }
 
@@ -266,15 +267,6 @@ struct Sync {
     }
 
     // MARK: - Formatting
-
-    private static func styledRepoPath(_ path: String) -> String {
-        guard let lastSlash = path.lastIndex(of: "/") else {
-            return styled(path, .bold)
-        }
-        let before = String(path[path.startIndex...lastSlash])
-        let name = String(path[path.index(after: lastSlash)...])
-        return styled(before, .darkGray) + styled(name, .bold)
-    }
 
     private static func styledDuration(_ seconds: TimeInterval) -> String {
         let text: String

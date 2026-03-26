@@ -83,6 +83,15 @@ struct Parser {
         }
     }
 
+    /// Load the manifest if it exists, returning the manifest, mount dir, and declared URLs.
+    static func loadManifest() -> (manifest: Manifest?, mount: String, declaredURLs: [String]) {
+        let path = Config.manifestPath
+        let manifest: Manifest? = FS.exists(path) ? parseOrNil(at: path) : nil
+        let mount = manifest?.mount ?? FS.expandPath(defaultMount)
+        let urls = manifest?.repos ?? []
+        return (manifest, mount, urls)
+    }
+
     static func save(_ manifest: Manifest, to path: String) throws {
         var lines: [String] = []
         lines.append("mount = \"\(FS.shortenPath(manifest.mount))\"")

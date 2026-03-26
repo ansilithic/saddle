@@ -20,20 +20,37 @@ struct ManifestShow: ParsableCommand {
         print()
 
         let sorted = manifest.repos.sorted()
-        let width = String(sorted.count).count
+        var hookedCount = 0
 
-        for (i, repo) in sorted.enumerated() {
-            let numStr = String(i + 1)
-            let num = styled(String(repeating: " ", count: width - numStr.count) + numStr, .dim)
-            let hooked = HookResolver.hasHook(for: repo) ? styled(" ~", .cyan) : "  "
+        let table = TrafficLightTable(segments: [
+            .indicators([
+                Indicator("hooked", color: .custom(RGB(hex: "7B2FBE").fg)),
+            ]),
+            .column(TextColumn("Repo", sizing: .auto())),
+        ])
+
+        var rows: [TrafficLightRow] = []
+
+        for repo in sorted {
+            let isHooked = HookResolver.hasHook(for: repo)
+            if isHooked { hookedCount += 1 }
+
             let parts = repo.split(separator: "/", maxSplits: 2)
+            let entry: String
             if parts.count == 3 {
-                let entry = styled(String(parts[0]), .dim) + styled("/", .dim) + styled(String(parts[1]), .yellow) + styled("/", .dim) + styled(String(parts[2]), .white)
-                print("  \(num)\(hooked) \(entry)")
+                entry = styled(String(parts[0]), .dim) + styled("/", .dim) + styled(String(parts[1]), .yellow) + styled("/", .dim) + styled(String(parts[2]), .white)
             } else {
-                print("  \(num)\(hooked) \(styled(repo, .white))")
+                entry = styled(repo, .white)
             }
+
+            rows.append(TrafficLightRow(
+                indicators: [[isHooked ? .on : .off]],
+                values: [entry]
+            ))
         }
+
+        let counts: [[Int]] = [[hookedCount]]
+        print(table.render(rows: rows, counts: counts, terminalWidth: terminalWidth()), terminator: "")
 
         print()
         print(styled("\(sorted.count) repos", .dim))
