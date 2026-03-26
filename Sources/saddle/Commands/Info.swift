@@ -8,24 +8,17 @@ struct Info: ParsableCommand {
     )
 
     func run() {
-        let spinner = BrailleSpinner(label: "Loading config\u{2026}")
+        let spinner = ProgressSpinner()
+        spinner.label = styled("Loading config\u{2026}", .dim)
         spinner.start()
 
-        let manifest: Manifest?
-        let path = Config.manifestPath
-        if FS.exists(path) {
-            manifest = Parser.parseOrNil(at: path)
-        } else {
-            manifest = nil
-        }
-
-        let devDir = manifest?.mount ?? FS.expandPath(Parser.defaultMount)
-        let forgeResult = Forge.fetchAllRepos(declaredURLs: manifest?.repos ?? [])
+        let (manifest, devDir, declaredURLs) = Parser.loadManifest()
+        let forgeResult = Forge.fetchAllRepos(declaredURLs: declaredURLs)
 
         spinner.stop()
 
         Config.printBanner(
-            manifestPath: manifest != nil ? path : nil,
+            manifestPath: manifest != nil ? Config.manifestPath : nil,
             mountDir: devDir,
             authenticatedUser: forgeResult.authenticatedUser
         )

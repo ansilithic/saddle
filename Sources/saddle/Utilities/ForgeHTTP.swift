@@ -1,10 +1,13 @@
 import Foundation
+import os
 
 /// Shared HTTP client for forge API requests.
 /// Eliminates duplication between GitHub and GitLab API layers.
 struct ForgeHTTP: Sendable {
     let baseURL: String
     let acceptHeader: String
+
+    private static let logger = Logger(subsystem: "com.ansilithic.saddle", category: "http")
 
     private static let session: URLSession = {
         let config = URLSessionConfiguration.default
@@ -15,7 +18,7 @@ struct ForgeHTTP: Sendable {
     }()
 
     func reachable(timeout: TimeInterval = 2) -> Bool {
-        guard let url = URL(string: baseURL + "/version") else { return false }
+        guard let url = URL(string: baseURL) else { return false }
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
         request.timeoutInterval = timeout
@@ -54,8 +57,14 @@ struct ForgeHTTP: Sendable {
         nonisolated(unsafe) var result: Data?
         let sem = DispatchSemaphore(value: 0)
         Self.session.dataTask(with: request) { data, response, _ in
-            if let http = response as? HTTPURLResponse, http.statusCode == 200 {
-                result = data
+            if let http = response as? HTTPURLResponse {
+                if http.statusCode == 200 {
+                    result = data
+                } else if http.statusCode == 403 || http.statusCode == 429 {
+                    let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining") ?? "?"
+                    let reset = http.value(forHTTPHeaderField: "X-RateLimit-Reset") ?? "?"
+                    Self.logger.warning("Rate limited (\(http.statusCode)) on \(path, privacy: .public) — remaining: \(remaining, privacy: .public), reset: \(reset, privacy: .public)")
+                }
             }
             sem.signal()
         }.resume()

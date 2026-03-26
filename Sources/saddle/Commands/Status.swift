@@ -71,19 +71,10 @@ struct Status: ParsableCommand {
         spinner.label = styled("Scanning\u{2026}", .dim)
         spinner.start()
 
-        let manifest: Manifest?
-        let path = Config.manifestPath
-        if FS.exists(path) {
-            manifest = Parser.parseOrNil(at: path)
-        } else {
-            manifest = nil
-        }
-
-        let devDir = manifest?.mount ?? FS.expandPath(Parser.defaultMount)
-        let declaredURLs = manifest?.repos ?? []
+        let (manifest, devDir, declaredURLs) = Parser.loadManifest()
 
         let shouldFetch = forceFetch || State.shouldFetch()
-        let (allRepos, _, forgeResult) = gatherRepos(manifest: manifest, devDir: devDir, declaredURLs: declaredURLs, spinner: spinner, fetch: shouldFetch)
+        let (allRepos, _, forgeResult) = gatherRepos(manifest: manifest, devDir: devDir, declaredURLs: declaredURLs, spinner: spinner, fetch: shouldFetch, forceForge: forceFetch)
 
         spinner.stop()
 
@@ -178,14 +169,14 @@ struct Status: ParsableCommand {
 
     // MARK: - Data Gathering
 
-    private func gatherRepos(manifest: Manifest?, devDir: String, declaredURLs: [String], spinner: ProgressSpinner, fetch: Bool) -> (repos: [RepoInfo], missingURLs: [String], forge: ForgeResult) {
+    private func gatherRepos(manifest: Manifest?, devDir: String, declaredURLs: [String], spinner: ProgressSpinner, fetch: Bool, forceForge: Bool = false) -> (repos: [RepoInfo], missingURLs: [String], forge: ForgeResult) {
         let normalizedDeclared = Set(declaredURLs.map { URLHelpers.normalize($0) })
 
         nonisolated(unsafe) var forgeResult = ForgeResult()
         let visGroup = DispatchGroup()
         visGroup.enter()
         DispatchQueue.global().async {
-            forgeResult = Forge.fetchAllRepos(declaredURLs: declaredURLs)
+            forgeResult = Forge.fetchAllRepos(declaredURLs: declaredURLs, forceRefresh: forceForge)
             visGroup.leave()
         }
 
@@ -540,15 +531,7 @@ struct Status: ParsableCommand {
             let missing = repo.saddled
             return missing ? styled("\u{2014}", .dim, .red) : styled("\u{2014}", .dim)
         }
-
-        let pathRaw = repo.relativePath
-
-        let lastSlash = pathRaw.lastIndex(of: "/")
-        let (before, name) = lastSlash.map { slash in
-            (String(pathRaw[pathRaw.startIndex...slash]), String(pathRaw[pathRaw.index(after: slash)...]))
-        } ?? ("", pathRaw)
-
-        return styled(before, .darkGray) + styled(name, .bold)
+        return styledRepoPath(repo.relativePath)
     }
 
     private func blendedString(_ text: String, colors: [(r: Int, g: Int, b: Int)]) -> String {

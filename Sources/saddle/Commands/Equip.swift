@@ -23,7 +23,8 @@ struct Equip: ParsableCommand {
             manifest = Manifest(mount: FS.expandPath(Parser.defaultMount), repos: [])
         }
 
-        if manifest.repos.contains(normalized) {
+        let normalizedExisting = Set(manifest.repos.map { URLHelpers.normalize($0) })
+        if normalizedExisting.contains(normalized) {
             Output.error("Already equipped: \(normalized)")
             throw ExitCode.failure
         }

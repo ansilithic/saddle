@@ -36,8 +36,6 @@ struct SyncResult {
             if !name.isEmpty { failures.append((name, msg)) }
         }
     }
-
-    var total: Int { synced + unchanged + skipped + failed }
 }
 
 struct RemoteRepoInfo: Codable {

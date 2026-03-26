@@ -19,8 +19,12 @@ enum Forge {
     private static let defaultProviders: [any ForgeProvider] = [GitHub(), GitLab()]
     private static let defaultHostnames: Set<String> = ["github.com", "gitlab.com"]
 
-    static func fetchAllRepos(declaredURLs: [String] = []) -> ForgeResult {
+    static func fetchAllRepos(declaredURLs: [String] = [], forceRefresh: Bool = false) -> ForgeResult {
         if let mockResult = loadMock() { return mockResult }
+
+        if !forceRefresh, let cached = State.loadForgeCache() {
+            return cached
+        }
 
         let extraHosts = Set(declaredURLs.map { URLHelpers.host(from: $0) })
             .subtracting(defaultHostnames)
@@ -58,6 +62,8 @@ enum Forge {
                 merged.authenticatedUser = result.authenticatedUser
             }
         }
+
+        State.saveForgeCache(merged)
         return merged
     }
 

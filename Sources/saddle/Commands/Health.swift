@@ -27,16 +27,7 @@ struct Health: ParsableCommand {
         spinner.label = styled("Scanning\u{2026}", .dim)
         spinner.start()
 
-        let manifest: Manifest?
-        let path = Config.manifestPath
-        if FS.exists(path) {
-            manifest = Parser.parseOrNil(at: path)
-        } else {
-            manifest = nil
-        }
-
-        let devDir = manifest?.mount ?? FS.expandPath(Parser.defaultMount)
-        let declaredURLs = manifest?.repos ?? []
+        let (_, devDir, declaredURLs) = Parser.loadManifest()
         let normalizedDeclared = Set(declaredURLs.map { URLHelpers.normalize($0) })
 
         let discoveredPaths = FS.findRepos(in: devDir)
@@ -69,10 +60,10 @@ struct Health: ParsableCommand {
                 if !remoteURL.isEmpty,
                    let resolution = HookResolver.resolve(for: remoteURL, lifecycle: .health) {
                     hasHealthHook = true
-                    let (_, exitCode) = Exec.run("/bin/bash", args: [
-                        "-c", ". '\(resolution.scriptPath)' && health",
-                    ], cwd: repoPath, timeout: 10)
-                    hookPassed = exitCode == 0
+                    let result = HookResolver.execute(resolution, at: repoPath)
+                    if case .ran(_, let exitCode) = result {
+                        hookPassed = exitCode == 0
+                    }
                 }
 
                 buffer[i] = HealthInfo(
@@ -217,12 +208,7 @@ struct Health: ParsableCommand {
     }
 
     private func stylePath(_ repo: HealthInfo) -> String {
-        let pathRaw = repo.relativePath
-        let lastSlash = pathRaw.lastIndex(of: "/")
-        let (before, name) = lastSlash.map { slash in
-            (String(pathRaw[pathRaw.startIndex...slash]), String(pathRaw[pathRaw.index(after: slash)...]))
-        } ?? ("", pathRaw)
-        return styled(before, .darkGray) + styled(name, .bold)
+        styledRepoPath(repo.relativePath)
     }
 
     private func legendCounts(repos: [HealthInfo]) -> [[Int]] {
