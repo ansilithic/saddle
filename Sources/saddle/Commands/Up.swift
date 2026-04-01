@@ -14,7 +14,7 @@ struct Up: ParsableCommand {
     var forceHooks = false
 
     func run() throws {
-        let path = Config.manifestPath
+        let path = Paths.manifestPath
         guard FS.exists(path) else {
             Output.error("No manifest found at \(FS.shortenPath(path))")
             throw ExitCode.failure

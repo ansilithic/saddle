@@ -13,9 +13,9 @@ struct Unequip: ParsableCommand {
     func run() throws {
         let normalized = try GitHelpers.resolveRepoArgument(repo)
 
-        let manifestPath = Config.manifestPath
+        let manifestPath = Paths.manifestPath
         guard FS.exists(manifestPath), var manifest = Parser.parseOrNil(at: manifestPath) else {
-            Output.error("No manifest found at \(FS.shortenPath(Config.manifestPath))")
+            Output.error("No manifest found at \(FS.shortenPath(Paths.manifestPath))")
             throw ExitCode.failure
         }
 

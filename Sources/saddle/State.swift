@@ -4,25 +4,23 @@ struct SaddleState: Codable {
     var version: Int = 1
     var lastRun: String?
     var lastFetch: String?
-    var lastForge: String?
 }
 
-/// Cached forge API result, stored as JSON.
-struct ForgeCache: Codable {
+struct HostCache: Codable {
     let repos: [String: RemoteRepoInfo]
     let starredURLs: [String]
     let authenticatedUser: String?
     let timestamp: String
 
-    init(from result: ForgeResult) {
+    init(from result: HostResult) {
         self.repos = result.repos
         self.starredURLs = Array(result.starredURLs)
         self.authenticatedUser = result.authenticatedUser
         self.timestamp = DateFormatting.iso8601.string(from: Date())
     }
 
-    func toResult() -> ForgeResult {
-        ForgeResult(
+    func toResult() -> HostResult {
+        HostResult(
             repos: repos,
             orgNames: [],
             starredURLs: Set(starredURLs),
@@ -32,11 +30,10 @@ struct ForgeCache: Codable {
 }
 
 struct State {
-    private static let forgeCacheTTL: TimeInterval = 600 // 10 minutes
+    private static let hostCacheTTL: TimeInterval = 600 // 10 minutes
 
     static func load() -> SaddleState {
-        let path = Config.stateFile
-        guard let data = FS.readFile(path)?.data(using: .utf8),
+        guard let data = try? FS.readFile(Paths.stateFile).data(using: .utf8),
               let state = try? JSONDecoder().decode(SaddleState.self, from: data) else {
             return SaddleState()
         }
@@ -44,16 +41,17 @@ struct State {
     }
 
     static func save(_ state: SaddleState) {
-        let dir = Config.stateDir
-        if !FS.isDirectory(dir) { _ = FS.createDirectory(dir) }
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(state),
-              let json = String(data: data, encoding: .utf8) else {
-            return
+        do {
+            let dir = Paths.dataDir
+            if !FS.isDirectory(dir) { try FS.createDirectory(dir) }
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(state)
+            guard let json = String(data: data, encoding: .utf8) else { return }
+            try FS.writeFile(Paths.stateFile, contents: json)
+        } catch {
+            Log.error("Failed to save state: \(error)")
         }
-        _ = FS.writeFile(Config.stateFile, contents: json)
     }
 
     static func touchLastRun() {
@@ -77,28 +75,30 @@ struct State {
         return Date().timeIntervalSince(date) > 86400
     }
 
-    // MARK: - Forge Cache
+    // MARK: - Host Cache
 
-    private static var forgeCachePath: String { "\(Config.stateDir)/forge-cache.json" }
-
-    static func loadForgeCache() -> ForgeResult? {
-        guard let raw = FS.readFile(forgeCachePath)?.data(using: .utf8),
-              let cache = try? JSONDecoder().decode(ForgeCache.self, from: raw),
+    static func loadHostCache() -> HostResult? {
+        guard let raw = try? FS.readFile(Paths.hostCachePath).data(using: .utf8),
+              let cache = try? JSONDecoder().decode(HostCache.self, from: raw),
               let date = DateFormatting.iso8601.date(from: cache.timestamp),
-              Date().timeIntervalSince(date) < forgeCacheTTL else {
+              Date().timeIntervalSince(date) < hostCacheTTL else {
             return nil
         }
         return cache.toResult()
     }
 
-    static func saveForgeCache(_ result: ForgeResult) {
-        let dir = Config.stateDir
-        if !FS.isDirectory(dir) { _ = FS.createDirectory(dir) }
-        let cache = ForgeCache(from: result)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(cache),
-              let json = String(data: data, encoding: .utf8) else { return }
-        _ = FS.writeFile(forgeCachePath, contents: json)
+    static func saveHostCache(_ result: HostResult) {
+        do {
+            let dir = Paths.cacheDir
+            if !FS.isDirectory(dir) { try FS.createDirectory(dir) }
+            let cache = HostCache(from: result)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let data = try encoder.encode(cache)
+            guard let json = String(data: data, encoding: .utf8) else { return }
+            try FS.writeFile(Paths.hostCachePath, contents: json)
+        } catch {
+            Log.error("Failed to save host cache: \(error)")
+        }
     }
 }

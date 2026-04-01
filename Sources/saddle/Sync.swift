@@ -73,31 +73,6 @@ struct Sync {
             return RepoEntry(url: url, name: name, path: path, isExisting: path != nil)
         }
 
-        // Reachability check for non-standard hosts
-
-        let wellKnownHosts: Set<String> = ["github.com", "gitlab.com"]
-        let customHosts = Set(entries.map { URLHelpers.host(from: $0.url) }).subtracting(wellKnownHosts)
-        nonisolated(unsafe) var unreachableHosts: Set<String> = []
-        if !customHosts.isEmpty {
-            let reachLock = NSLock()
-            let sortedHosts = customHosts.sorted()
-            var reachResults = Array(repeating: true, count: sortedHosts.count)
-            reachResults.withUnsafeMutableBufferPointer { buf in
-                nonisolated(unsafe) let buffer = buf
-                DispatchQueue.concurrentPerform(iterations: sortedHosts.count) { i in
-                    let host = sortedHosts[i]
-                    let http = ForgeHTTP(baseURL: "https://\(host)/api/v4", acceptHeader: "application/json")
-                    let ok = http.reachable(timeout: 3)
-                    if !ok {
-                        buffer[i] = false
-                        reachLock.lock()
-                        unreachableHosts.insert(host)
-                        reachLock.unlock()
-                    }
-                }
-            }
-        }
-
         // Concurrent clone/pull + hooks
 
         print()
@@ -124,14 +99,9 @@ struct Sync {
                 spinner.activate("\(i)", name: relativePath)
 
                 // Clone or pull
-                let entryHost = URLHelpers.host(from: entry.url)
-                let hostUnreachable = unreachableHosts.contains(entryHost)
-
                 let outcome: SyncOutcome
                 var resolvedPath = entry.path
-                if hostUnreachable {
-                    outcome = .failed("\(entryHost) unreachable")
-                } else if !entry.isExisting {
+                if !entry.isExisting {
                     let clonePath = "\(devDir)/\(URLHelpers.pathAfterHost(from: entry.url))"
                     outcome = cloneRepo(url: entry.url, path: clonePath, cloneProtocol: cloneProtocol)
                     if case .synced = outcome {
@@ -238,10 +208,14 @@ struct Sync {
     // MARK: - Sync Operations
 
     private static func cloneRepo(url: String, path: String, cloneProtocol: Manifest.CloneProtocol) -> SyncOutcome {
-        let parent = (path as NSString).deletingLastPathComponent
-        if !FS.isDirectory(parent) { _ = FS.createDirectory(parent) }
+        let parent = URL(fileURLWithPath: path).deletingLastPathComponent().path
+        if !FS.isDirectory(parent) {
+            do { try FS.createDirectory(parent) } catch {
+                return .failed("cannot create directory: \(error)")
+            }
+        }
         let cloneURL = URLHelpers.cloneURL(from: url, protocol: cloneProtocol)
-        let (output, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"], timeout: 60)
+        let (output, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"], timeout: 120)
         return exitCode == 0 ? .synced : .failed("clone failed: \(lastMeaningfulLine(output))")
     }
 
@@ -257,7 +231,7 @@ struct Sync {
         let behind = Int(behindOutput) ?? 0
         if behind == 0 { return .unchanged }
 
-        let (pullOutput, pullExit) = Exec.git("pull", "--ff-only", at: path, timeout: 60)
+        let (pullOutput, pullExit) = Exec.git("pull", "--ff-only", at: path, timeout: 30)
         return pullExit == 0 ? .synced : .failed("pull failed: \(lastMeaningfulLine(pullOutput))")
     }
 

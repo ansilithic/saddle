@@ -2,7 +2,7 @@ import ArgumentParser
 import CLICore
 import Foundation
 
-struct Status: ParsableCommand {
+struct Status: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Show status of all repos in the developer directory."
     )
@@ -66,7 +66,7 @@ struct Status: ParsableCommand {
         let hasHook: Bool
     }
 
-    func run() {
+    func run() async {
         let spinner = ProgressSpinner()
         spinner.label = styled("Scanning\u{2026}", .dim)
         spinner.start()
@@ -74,14 +74,14 @@ struct Status: ParsableCommand {
         let (manifest, devDir, declaredURLs) = Parser.loadManifest()
 
         let shouldFetch = forceFetch || State.shouldFetch()
-        let (allRepos, _, forgeResult) = gatherRepos(manifest: manifest, devDir: devDir, declaredURLs: declaredURLs, spinner: spinner, fetch: shouldFetch, forceForge: forceFetch)
+        let (allRepos, _, hostResult) = await gatherRepos(manifest: manifest, devDir: devDir, declaredURLs: declaredURLs, spinner: spinner, fetch: shouldFetch, forceHost: forceFetch)
 
         spinner.stop()
 
         let repos = applyFilters(allRepos)
 
         if !repos.isEmpty {
-            printReposSection(repos, forge: forgeResult, mountDir: devDir)
+            printReposSection(repos, host: hostResult, mountDir: devDir)
         } else {
             print()
             print()
@@ -169,16 +169,10 @@ struct Status: ParsableCommand {
 
     // MARK: - Data Gathering
 
-    private func gatherRepos(manifest: Manifest?, devDir: String, declaredURLs: [String], spinner: ProgressSpinner, fetch: Bool, forceForge: Bool = false) -> (repos: [RepoInfo], missingURLs: [String], forge: ForgeResult) {
+    private func gatherRepos(manifest: Manifest?, devDir: String, declaredURLs: [String], spinner: ProgressSpinner, fetch: Bool, forceHost: Bool = false) async -> (repos: [RepoInfo], missingURLs: [String], host: HostResult) {
         let normalizedDeclared = Set(declaredURLs.map { URLHelpers.normalize($0) })
 
-        nonisolated(unsafe) var forgeResult = ForgeResult()
-        let visGroup = DispatchGroup()
-        visGroup.enter()
-        DispatchQueue.global().async {
-            forgeResult = Forge.fetchAllRepos(declaredURLs: declaredURLs, forceRefresh: forceForge)
-            visGroup.leave()
-        }
+        async let hostResultTask = Host.fetchAllRepos(declaredURLs: declaredURLs, forceRefresh: forceHost)
 
         let discoveredPaths = FS.findRepos(in: devDir)
         let repoCount = discoveredPaths.count
@@ -209,26 +203,6 @@ struct Status: ParsableCommand {
             }
         }
 
-        // Reachability check for non-standard hosts
-        let wellKnownHosts: Set<String> = ["github.com", "gitlab.com"]
-        let customHosts = Set(
-            partials.compactMap { $0.git.remoteURL.map { URLHelpers.host(from: $0) } }
-        ).subtracting(wellKnownHosts)
-        nonisolated(unsafe) var unreachableHosts: Set<String> = []
-        if fetch, !customHosts.isEmpty {
-            let reachLock = NSLock()
-            let sortedHosts = customHosts.sorted()
-            DispatchQueue.concurrentPerform(iterations: sortedHosts.count) { i in
-                let host = sortedHosts[i]
-                let http = ForgeHTTP(baseURL: "https://\(host)/api/v4", acceptHeader: "application/json")
-                if !http.reachable(timeout: 3) {
-                    reachLock.lock()
-                    unreachableHosts.insert(host)
-                    reachLock.unlock()
-                }
-            }
-        }
-
         // Phase 2: fetch remotes (network)
         if fetch {
             let fetchLock = NSLock()
@@ -245,18 +219,10 @@ struct Status: ParsableCommand {
                 DispatchQueue.concurrentPerform(iterations: fetchCount) { fi in
                     let (i, partial) = fetchable[fi]
                     let repoPath = discoveredPaths[i]
-                    let host = partial.git.remoteURL.map { URLHelpers.host(from: $0) } ?? ""
 
                     spinner.activate("\(fi)", name: partial.relativePath)
 
-                    let fetchExit: Int32
-                    let fetchOutput: String
-                    if unreachableHosts.contains(host) {
-                        fetchExit = 1
-                        fetchOutput = "\(host) unreachable"
-                    } else {
-                        (fetchOutput, fetchExit) = Exec.git("fetch", at: repoPath, timeout: 30)
-                    }
+                    let (fetchOutput, fetchExit) = Exec.git("fetch", at: repoPath, timeout: 30)
 
                     if fetchExit == 0 {
                         let git = GitHelpers.info(at: repoPath)
@@ -284,14 +250,14 @@ struct Status: ParsableCommand {
             State.touchLastFetch()
         }
 
-        visGroup.wait()
+        let hostResult = await hostResultTask
 
         var repos: [RepoInfo] = []
         var localNormalized = Set<String>()
         var matchedNormalized = Set<String>()
         for p in partials {
             let normalized = p.git.remoteURL.map { URLHelpers.normalize($0) }
-            let ghInfo = normalized.flatMap { forgeResult.repos[$0] }
+            let ghInfo = normalized.flatMap { hostResult.repos[$0] }
 
             let visibility = ghInfo?.visibility ?? "\u{2014}"
             let role = ghInfo?.role ?? (p.git.remoteURL != nil ? "\u{2014}" : "local")
@@ -309,7 +275,7 @@ struct Status: ParsableCommand {
             }
 
             let owner = p.git.remoteURL.map { URLHelpers.owner(from: $0) } ?? "local"
-            let isStarred = normalized.map { forgeResult.starredURLs.contains($0) } ?? false
+            let isStarred = normalized.map { hostResult.starredURLs.contains($0) } ?? false
             let repo = RepoInfo(
                 relativePath: p.relativePath,
                 fullPath: p.fullPath,
@@ -341,7 +307,7 @@ struct Status: ParsableCommand {
             }
         }
 
-        let remoteOnly = forgeResult.repos
+        let remoteOnly = hostResult.repos
             .filter { !localNormalized.contains($0.key) }
             .sorted { $0.key < $1.key }
 
@@ -371,13 +337,13 @@ struct Status: ParsableCommand {
                 behind: 0,
                 saddled: normalizedDeclared.contains(normalizedURL),
                 hasHook: false,
-                isStarred: forgeResult.starredURLs.contains(normalizedURL),
+                isStarred: hostResult.starredURLs.contains(normalizedURL),
                 remoteOnly: true
             ))
         }
 
-        let missingWithNoForgeData = normalizedDeclared.subtracting(localNormalized).subtracting(remoteOnlyNormalized)
-        for normalizedURL in missingWithNoForgeData.sorted() {
+        let missingWithNoHostData = normalizedDeclared.subtracting(localNormalized).subtracting(remoteOnlyNormalized)
+        for normalizedURL in missingWithNoHostData.sorted() {
             let name = URLHelpers.pathAfterHost(from: normalizedURL)
             let owner = URLHelpers.owner(from: normalizedURL)
             let host = URLHelpers.host(from: normalizedURL)
@@ -400,17 +366,17 @@ struct Status: ParsableCommand {
                 behind: 0,
                 saddled: true,
                 hasHook: false,
-                isStarred: forgeResult.starredURLs.contains(normalizedURL),
+                isStarred: hostResult.starredURLs.contains(normalizedURL),
                 remoteOnly: true
             ))
         }
 
-        return (repos, [], forgeResult)
+        return (repos, [], hostResult)
     }
 
     // MARK: - Display
 
-    private func printReposSection(_ repos: [RepoInfo], forge: ForgeResult, mountDir: String) {
+    private func printReposSection(_ repos: [RepoInfo], host: HostResult, mountDir: String) {
         let termWidth = terminalWidth()
         let mountLabel = FS.shortenPath(mountDir)
 
@@ -491,9 +457,9 @@ struct Status: ParsableCommand {
 
     private func originIndicatorColors(repo: RepoInfo) -> [(r: Int, g: Int, b: Int)] {
         var colors: [(r: Int, g: Int, b: Int)] = []
-        if repo.visibility == "private" { colors.append((30, 160, 12)) }    // private green
-        if repo.visibility == "public"  { colors.append((249, 115, 22)) }   // public orange
-        if repo.isStarred               { colors.append((255, 229, 0)) }    // starred yellow
+        if repo.visibility == "private" { colors.append((30, 160, 12)) }
+        if repo.visibility == "public"  { colors.append((249, 115, 22)) }
+        if repo.isStarred               { colors.append((255, 229, 0)) }
         return colors
     }
 
