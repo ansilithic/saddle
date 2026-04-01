@@ -82,7 +82,30 @@ struct HostHTTP: Sendable {
         return all
     }
 
-    // Synchronous convenience for simple one-off calls (auth validation)
+    /// Synchronous form-encoded POST (for OAuth endpoints).
+    static func postSync(url urlString: String, body: String) -> Data? {
+        guard let url = URL(string: urlString) else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = body.data(using: .utf8)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 10
+
+        nonisolated(unsafe) var result: Data?
+        let sem = DispatchSemaphore(value: 0)
+        session.dataTask(with: request) { data, response, _ in
+            if let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                result = data
+            }
+            sem.signal()
+        }.resume()
+        sem.wait()
+        return result
+    }
+
+    /// Synchronous GET for simple one-off calls (auth validation).
     func getSync(_ path: String, token: String, params: [(String, String)] = []) -> Data? {
         nonisolated(unsafe) var result: Data?
         let sem = DispatchSemaphore(value: 0)

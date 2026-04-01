@@ -2,9 +2,10 @@
 
 ![Swift 6.0](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-supported-FCC624?logo=linux&logoColor=black)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue)
 
-Repo wrangler for macOS - track, organize, and sync every git repository locally (and remotely).
+Repo wrangler — track, organize, and sync every git repository locally (and remotely).
 
 ![saddle](assets/status.gif)
 
@@ -22,22 +23,32 @@ cd saddle
 make build && make install
 ```
 
-Requires macOS 14+ (Sonoma), Swift 6.0, and the [gh CLI](https://cli.github.com/) for GitHub integration.
+Requires Swift 6.0. macOS 14+ or Linux.
+
+## Authenticate
+
+Saddle uses GitHub's OAuth device flow — no tokens to copy-paste.
+
+```sh
+saddle auth
+```
+
+A browser opens, a code is displayed. Enter the code, authorize, done.
 
 ## Quick start
 
 Add repos to the manifest:
 
 ```sh
-saddle equip https://github.com/user/dotfiles
-saddle equip https://github.com/user/scripts
-saddle equip https://github.com/user/cool-cli
+saddle equip user/dotfiles
+saddle equip user/scripts
+saddle equip user/cool-cli
 ```
 
 Or create the manifest directly:
 
 ```toml
-# ~/Library/Application Support/com.ansilithic.saddle/manifest.toml
+# $XDG_CONFIG_HOME/saddle/manifest.toml
 mount = "~/Developer"
 
 [repos]
@@ -70,7 +81,7 @@ saddle health --owner <name> # filter by org/owner
 Optional per-repo scripts that run during sync. Each hook is a single `hook.sh` file with functions for different lifecycle phases. The script's working directory is the repo itself.
 
 ```
-~/Library/Application Support/com.ansilithic.saddle/hooks/user-dotfiles/hook.sh
+$XDG_CONFIG_HOME/saddle/hooks/user-dotfiles/hook.sh
 ```
 
 ```bash
@@ -93,17 +104,25 @@ health() {
 - `uninstall` — runs on `saddle unequip`
 - `health` — checks if the tool is properly installed
 
-Hook names are derived from the repo URL: `github.com/user/dotfiles` becomes `user-dotfiles`. Scripts must be executable. Output is logged via macOS unified logging (subsystem `com.ansilithic.saddle`, category `hooks`).
+Hook names are derived from the repo URL: `github.com/user/dotfiles` becomes `user-dotfiles`. Scripts must be executable.
 
-**Security note**: Hook scripts run with full user privileges. Only install hooks from sources that are trusted — a malicious hook script has the same access as the current user. Review hook scripts before marking them executable.
+**Security note**: Hook scripts run with full user privileges. Only install hooks from trusted sources — a malicious hook script has the same access as the current user. Review hook scripts before marking them executable.
 
-## GitHub and GitLab Integration
+## Paths
 
-Saddle delegates authentication to the [gh](https://cli.github.com/) and [glab](https://gitlab.com/gitlab-org/cli) CLIs. If the user is authenticated to these tools, saddle will show repo visibility, list all remote repos, and display any starred repos too.
+Saddle follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/):
+
+| Purpose | Location |
+|---------|----------|
+| Config (manifest, hooks) | `$XDG_CONFIG_HOME/saddle/` |
+| Data (state, credentials) | `$XDG_DATA_HOME/saddle/` |
+| Cache (API cache) | `$XDG_CACHE_HOME/saddle/` |
+
+On macOS with default XDG variables, these resolve to `~/Library/Application Support/saddle/` and `~/Library/Caches/saddle/`.
 
 ## AI agent usage
 
-Where [gh](https://cli.github.com/) and [glab](https://gitlab.com/gitlab-org/cli) are windows into the remote, saddle is the local layer — what's cloned, what's dirty, what's out of sync. Beautiful ANSI for humans checking what agents are up to, structured JSON for agents that need a centralized dashboard. Together they give full repo visibility across both sides. See [SKILL.md](SKILL.md) for agent-specific instructions.
+Saddle is the local layer — what's cloned, what's dirty, what's out of sync. See [SKILL.md](SKILL.md) for agent-specific instructions.
 
 ## License
 

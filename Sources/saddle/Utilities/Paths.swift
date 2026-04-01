@@ -42,6 +42,8 @@ enum Paths {
             let parent = URL(fileURLWithPath: configDir).deletingLastPathComponent().path
             try FS.createDirectory(parent)
             try FileManager.default.moveItem(atPath: oldDir, toPath: configDir)
-        } catch {}
+        } catch {
+            Log.error("Migration from com.ansilithic.saddle failed: \(error)")
+        }
     }
 }

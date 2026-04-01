@@ -215,7 +215,7 @@ struct Sync {
             }
         }
         let cloneURL = URLHelpers.cloneURL(from: url, protocol: cloneProtocol)
-        let (output, exitCode) = Exec.run("/usr/bin/git", args: ["clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"], timeout: 120)
+        let (output, exitCode) = Exec.run("/usr/bin/env", args: ["git", "clone", cloneURL, path], env: ["GIT_TERMINAL_PROMPT": "0"], timeout: 120)
         return exitCode == 0 ? .synced : .failed("clone failed: \(lastMeaningfulLine(output))")
     }
 

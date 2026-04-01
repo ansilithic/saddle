@@ -22,7 +22,7 @@ enum Host {
 
         let paths = declaredURLs.compactMap { url -> String? in
             let host = URLHelpers.host(from: url)
-            guard host == "github.com" else { return nil }
+            guard host == GitHub.hostname else { return nil }
             return URLHelpers.pathAfterHost(from: url)
         }
 
