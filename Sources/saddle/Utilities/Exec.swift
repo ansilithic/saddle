@@ -25,8 +25,8 @@ struct Exec {
         var env = ProcessInfo.processInfo.environment
         env["GIT_TERMINAL_PROMPT"] = "0"
         return execute(
-            executable: "/usr/bin/git",
-            args: ["-C", path] + args,
+            executable: "/usr/bin/env",
+            args: ["git", "-C", path] + args,
             cwd: nil,
             env: env,
             mergeStderr: false,

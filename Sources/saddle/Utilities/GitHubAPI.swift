@@ -1,17 +1,14 @@
 import Foundation
 
 struct GitHub: Sendable {
-    let hostname = "github.com"
+    static let hostname = "github.com"
+    static let apiBaseURL = "https://api.github.com"
+    static let apiAccept = "application/vnd.github+json"
 
-    private let http = HostHTTP(
-        baseURL: "https://api.github.com",
-        acceptHeader: "application/vnd.github+json"
-    )
+    private let http = HostHTTP(baseURL: GitHub.apiBaseURL, acceptHeader: GitHub.apiAccept)
 
     func resolveToken() -> String? {
-        if let envToken = ProcessInfo.processInfo.environment["GITHUB_TOKEN"],
-           !envToken.isEmpty { return envToken }
-        return CredentialStore.platform.get(account: "github.com")
+        CredentialStore.platform.get(account: GitHub.hostname)
     }
 
     func fetchRepos(token: String, declaredPaths: [String]) async -> HostResult {

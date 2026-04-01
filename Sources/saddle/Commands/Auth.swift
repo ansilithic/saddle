@@ -18,15 +18,14 @@ struct Auth: ParsableCommand {
         func run() throws {
             let token = try DeviceFlow.authenticate()
 
-            // Validate
-            let http = HostHTTP(baseURL: "https://api.github.com", acceptHeader: "application/vnd.github+json")
+            let http = HostHTTP(baseURL: GitHub.apiBaseURL, acceptHeader: GitHub.apiAccept)
             guard let data = http.getSync("/user", token: token),
                   let user = try? JSONDecoder().decode(GitHubUser.self, from: data) else {
                 Output.error("Got a token but could not verify it.")
                 throw ExitCode.failure
             }
 
-            try CredentialStore.platform.set(account: "github.com", token: token)
+            try CredentialStore.platform.set(account: GitHub.hostname, token: token)
             print("  " + styled("Authenticated as", .green) + " " + styled(user.login, .bold))
         }
     }
@@ -40,19 +39,8 @@ struct Auth: ParsableCommand {
         func run() {
             print()
 
-            if let envToken = ProcessInfo.processInfo.environment["GITHUB_TOKEN"], !envToken.isEmpty {
-                let http = HostHTTP(baseURL: "https://api.github.com", acceptHeader: "application/vnd.github+json")
-                if let data = http.getSync("/user", token: envToken),
-                   let user = try? JSONDecoder().decode(GitHubUser.self, from: data) {
-                    print("  " + styled("Authenticated via GITHUB_TOKEN as", .green) + " " + styled(user.login, .bold))
-                } else {
-                    print("  " + styled("GITHUB_TOKEN is set but invalid.", .yellow))
-                }
-                return
-            }
-
-            if let token = CredentialStore.platform.get(account: "github.com") {
-                let http = HostHTTP(baseURL: "https://api.github.com", acceptHeader: "application/vnd.github+json")
+            if let token = CredentialStore.platform.get(account: GitHub.hostname) {
+                let http = HostHTTP(baseURL: GitHub.apiBaseURL, acceptHeader: GitHub.apiAccept)
                 if let data = http.getSync("/user", token: token),
                    let user = try? JSONDecoder().decode(GitHubUser.self, from: data) {
                     print("  " + styled("Authenticated as", .green) + " " + styled(user.login, .bold))
@@ -73,7 +61,7 @@ struct Auth: ParsableCommand {
         )
 
         func run() throws {
-            try CredentialStore.platform.delete(account: "github.com")
+            try CredentialStore.platform.delete(account: GitHub.hostname)
             print()
             print("  " + styled("Credentials removed.", .yellow))
         }

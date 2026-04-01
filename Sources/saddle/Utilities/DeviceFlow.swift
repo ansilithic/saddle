@@ -52,16 +52,14 @@ enum DeviceFlow {
     }
 
     static func authenticate() throws -> String {
-        // Step 1: Request device code
         let codeBody = "client_id=\(clientID)&scope=\(scope.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? scope)"
-        guard let codeData = postSync(
+        guard let codeData = HostHTTP.postSync(
             url: "https://github.com/login/device/code",
             body: codeBody
         ), let code = try? JSONDecoder().decode(CodeResponse.self, from: codeData) else {
             throw FlowError.requestFailed
         }
 
-        // Step 2: Show user code and open browser
         print()
         print("  " + styled("Enter code:", .dim) + " " + styled(code.userCode, .bold, .white))
         print()
@@ -72,7 +70,6 @@ enum DeviceFlow {
         Exec.run("/usr/bin/env", args: ["xdg-open", code.verificationUri])
         #endif
 
-        // Step 3: Poll for token
         var interval = code.interval
         let deadline = Date().addingTimeInterval(TimeInterval(code.expiresIn))
 
@@ -86,7 +83,7 @@ enum DeviceFlow {
             Thread.sleep(forTimeInterval: TimeInterval(interval))
 
             let tokenBody = "client_id=\(clientID)&device_code=\(code.deviceCode)&grant_type=urn:ietf:params:oauth:grant-type:device_code"
-            guard let tokenData = postSync(
+            guard let tokenData = HostHTTP.postSync(
                 url: "https://github.com/login/oauth/access_token",
                 body: tokenBody
             ), let response = try? JSONDecoder().decode(TokenResponse.self, from: tokenData) else {
@@ -116,27 +113,5 @@ enum DeviceFlow {
         }
 
         throw FlowError.expired
-    }
-
-    private static func postSync(url urlString: String, body: String) -> Data? {
-        guard let url = URL(string: urlString) else { return nil }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = body.data(using: .utf8)
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 10
-
-        nonisolated(unsafe) var result: Data?
-        let sem = DispatchSemaphore(value: 0)
-        URLSession.shared.dataTask(with: request) { data, response, _ in
-            if let http = response as? HTTPURLResponse, http.statusCode == 200 {
-                result = data
-            }
-            sem.signal()
-        }.resume()
-        sem.wait()
-        return result
     }
 }
