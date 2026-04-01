@@ -53,7 +53,7 @@ enum GitHelpers {
         let discoveredPaths = FS.findRepos(in: devDir)
         var matches: [String] = []
         for repoPath in discoveredPaths {
-            let dirName = (repoPath as NSString).lastPathComponent
+            let dirName = URL(fileURLWithPath: repoPath).lastPathComponent
             guard dirName.lowercased() == name.lowercased() else { continue }
             let (output, rc) = Exec.git("config", "remote.origin.url", at: repoPath)
             if rc == 0, !output.isEmpty {
@@ -68,6 +68,11 @@ enum GitHelpers {
     static func resolveRepoArgument(_ arg: String?, mountDir: String = FS.expandPath(Parser.defaultMount)) throws -> String {
         if let arg {
             let raw = URLHelpers.normalize(arg)
+            // Bare owner/repo (one slash, no dots) → prepend github.com
+            let slashCount = raw.filter({ $0 == "/" }).count
+            if slashCount == 1 && !raw.contains(".") {
+                return "github.com/\(raw)"
+            }
             if !raw.contains("/") {
                 switch resolveBareName(raw, in: mountDir) {
                 case .resolved(let url):
@@ -96,7 +101,7 @@ enum GitHelpers {
         let remoteURL = remoteRC == 0 && !rawRemote.isEmpty ? rawRemote : nil
 
         if fetch && remoteURL != nil {
-            _ = Exec.git("fetch", at: path, timeout: 10)
+            _ = Exec.git("fetch", at: path, timeout: 30)
         }
 
         let (statusOutput, statusRC) = Exec.git("status", "--porcelain=v2", "--branch", at: path)

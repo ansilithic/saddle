@@ -7,19 +7,19 @@ struct Equip: ParsableCommand {
         abstract: "Add a repo to the manifest."
     )
 
-    @Argument(help: "Repo name, or full URL (host/owner/repo). Omit to detect from current directory.")
+    @Argument(help: "Repo name, owner/repo, or full URL (host/owner/repo). Omit to detect from current directory.")
     var repo: String?
 
     func run() throws {
         let normalized = try GitHelpers.resolveRepoArgument(repo)
 
-        let manifestPath = Config.manifestPath
+        let manifestPath = Paths.manifestPath
         var manifest: Manifest
         if FS.exists(manifestPath), let existing = Parser.parseOrNil(at: manifestPath) {
             manifest = existing
         } else {
-            let configDir = Config.configDir
-            if !FS.isDirectory(configDir) { _ = FS.createDirectory(configDir) }
+            let configDir = Paths.configDir
+            if !FS.isDirectory(configDir) { try FS.createDirectory(configDir) }
             manifest = Manifest(mount: FS.expandPath(Parser.defaultMount), repos: [])
         }
 

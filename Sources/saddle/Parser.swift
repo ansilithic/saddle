@@ -20,7 +20,10 @@ struct Parser {
     static let defaultMount = "~/Developer"
 
     static func parse(at path: String) throws -> Manifest {
-        guard let contents = FS.readFile(path) else {
+        let contents: String
+        do {
+            contents = try FS.readFile(path)
+        } catch {
             throw ParseError.fileNotFound(path)
         }
         guard !contents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -85,7 +88,7 @@ struct Parser {
 
     /// Load the manifest if it exists, returning the manifest, mount dir, and declared URLs.
     static func loadManifest() -> (manifest: Manifest?, mount: String, declaredURLs: [String]) {
-        let path = Config.manifestPath
+        let path = Paths.manifestPath
         let manifest: Manifest? = FS.exists(path) ? parseOrNil(at: path) : nil
         let mount = manifest?.mount ?? FS.expandPath(defaultMount)
         let urls = manifest?.repos ?? []
@@ -104,7 +107,7 @@ struct Parser {
             lines.append("\"\(repo)\"")
         }
         lines.append("")
-        _ = FS.writeFile(path, contents: lines.joined(separator: "\n"))
+        try FS.writeFile(path, contents: lines.joined(separator: "\n"))
     }
 
 }

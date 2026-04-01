@@ -1,65 +1,55 @@
 import Foundation
 
-struct GitHub: ForgeProvider, Sendable {
+struct GitHub: Sendable {
     let hostname = "github.com"
-    let displayName = "GitHub"
 
-    private let http = ForgeHTTP(
+    private let http = HostHTTP(
         baseURL: "https://api.github.com",
         acceptHeader: "application/vnd.github+json"
     )
 
     func resolveToken() -> String? {
-        let (output, rc) = Exec.run("/usr/bin/env", args: ["gh", "auth", "token"], timeout: 3)
-        if rc == 0, !output.isEmpty { return output }
         if let envToken = ProcessInfo.processInfo.environment["GITHUB_TOKEN"],
            !envToken.isEmpty { return envToken }
-        return nil
+        return CredentialStore.platform.get(account: "github.com")
     }
 
-    func fetchRepos(token: String, declaredPaths: [String]) -> ForgeResult {
-        nonisolated(unsafe) var personalRepos: [GitHubRepo] = []
-        nonisolated(unsafe) var collabRepos: [GitHubRepo] = []
-        nonisolated(unsafe) var starredRepos: [GitHubRepo] = []
-        nonisolated(unsafe) var orgs: [GitHubOrg] = []
-        nonisolated(unsafe) var user: GitHubUser?
+    func fetchRepos(token: String, declaredPaths: [String]) async -> HostResult {
+        // Fetch personal, collab, orgs, user, starred concurrently
+        async let personalRepos: [GitHubRepo] = http.getPaginated("/user/repos", token: token, params: [
+            ("affiliation", "owner"),
+            ("visibility", "all"),
+        ])
+        async let collabRepos: [GitHubRepo] = http.getPaginated("/user/repos", token: token, params: [
+            ("affiliation", "collaborator"),
+        ])
+        async let orgs: [GitHubOrg] = http.getPaginated("/user/orgs", token: token)
+        async let userResult: GitHubUser? = {
+            guard let data = await http.get("/user", token: token) else { return nil }
+            return try? JSONDecoder().decode(GitHubUser.self, from: data)
+        }()
+        async let starredRepos: [GitHubRepo] = http.getPaginated("/user/starred", token: token)
 
-        DispatchQueue.concurrentPerform(iterations: 5) { i in
-            if i == 0 {
-                personalRepos = http.getPaginated("/user/repos", token: token, params: [
-                    ("affiliation", "owner"),
-                    ("visibility", "all"),
-                ])
-            } else if i == 1 {
-                collabRepos = http.getPaginated("/user/repos", token: token, params: [
-                    ("affiliation", "collaborator"),
-                ])
-            } else if i == 2 {
-                orgs = http.getPaginated("/user/orgs", token: token)
-            } else if i == 3 {
-                if let data = http.get("/user", token: token),
-                   let decoded = try? JSONDecoder().decode(GitHubUser.self, from: data) {
-                    user = decoded
-                }
-            } else {
-                starredRepos = http.getPaginated("/user/starred", token: token)
-            }
-        }
+        let (personal, collab, orgList, user, starred) = await (personalRepos, collabRepos, orgs, userResult, starredRepos)
 
-        var orgRepos = Array(repeating: [GitHubRepo](), count: orgs.count)
-        if !orgs.isEmpty {
-            orgRepos.withUnsafeMutableBufferPointer { buf in
-                nonisolated(unsafe) let buffer = buf
-                let orgLogins = orgs.map(\.login)
-                DispatchQueue.concurrentPerform(iterations: orgLogins.count) { i in
-                    buffer[i] = http.getPaginated("/orgs/\(orgLogins[i])/repos", token: token)
+        // Fetch org repos concurrently
+        let orgRepos: [[GitHubRepo]] = await withTaskGroup(of: (Int, [GitHubRepo]).self) { group in
+            for (i, org) in orgList.enumerated() {
+                group.addTask {
+                    let repos: [GitHubRepo] = await http.getPaginated("/orgs/\(org.login)/repos", token: token)
+                    return (i, repos)
                 }
             }
+            var results = Array(repeating: [GitHubRepo](), count: orgList.count)
+            for await (i, repos) in group {
+                results[i] = repos
+            }
+            return results
         }
 
         var map: [String: RemoteRepoInfo] = [:]
 
-        for repo in personalRepos {
+        for repo in personal {
             let key = "github.com/\(repo.fullName)".lowercased()
             map[key] = Self.extract(repo, role: "owned")
         }
@@ -73,7 +63,7 @@ struct GitHub: ForgeProvider, Sendable {
             }
         }
 
-        for repo in collabRepos {
+        for repo in collab {
             let key = "github.com/\(repo.fullName)".lowercased()
             if map[key] == nil {
                 map[key] = Self.extract(repo, role: "collab")
@@ -81,7 +71,7 @@ struct GitHub: ForgeProvider, Sendable {
         }
 
         var starredURLs = Set<String>()
-        for repo in starredRepos {
+        for repo in starred {
             let key = "github.com/\(repo.fullName)".lowercased()
             starredURLs.insert(key)
             if map[key] == nil {
@@ -89,18 +79,24 @@ struct GitHub: ForgeProvider, Sendable {
             }
         }
 
-        // Fetch declared repos not found via owned/collab/starred (e.g. third-party public repos)
+        // Fetch declared repos not found via owned/collab/starred
         let missingPaths = declaredPaths.filter { map["github.com/\($0)".lowercased()] == nil }
         if !missingPaths.isEmpty {
-            var fetched = Array(repeating: (GitHubRepo?).none, count: missingPaths.count)
-            fetched.withUnsafeMutableBufferPointer { buf in
-                nonisolated(unsafe) let buffer = buf
-                DispatchQueue.concurrentPerform(iterations: missingPaths.count) { i in
-                    if let data = http.get("/repos/\(missingPaths[i])", token: token),
-                       let repo = try? JSONDecoder().decode(GitHubRepo.self, from: data) {
-                        buffer[i] = repo
+            let fetched: [GitHubRepo?] = await withTaskGroup(of: (Int, GitHubRepo?).self) { group in
+                for (i, path) in missingPaths.enumerated() {
+                    group.addTask {
+                        guard let data = await http.get("/repos/\(path)", token: token),
+                              let repo = try? JSONDecoder().decode(GitHubRepo.self, from: data) else {
+                            return (i, nil)
+                        }
+                        return (i, repo)
                     }
                 }
+                var results = Array(repeating: (GitHubRepo?).none, count: missingPaths.count)
+                for await (i, repo) in group {
+                    results[i] = repo
+                }
+                return results
             }
             for repo in fetched {
                 guard let repo else { continue }
@@ -111,8 +107,8 @@ struct GitHub: ForgeProvider, Sendable {
             }
         }
 
-        let orgNames = Set(orgs.map { $0.login.lowercased() })
-        return ForgeResult(repos: map, orgNames: orgNames, starredURLs: starredURLs, authenticatedUser: user?.login.lowercased())
+        let orgNames = Set(orgList.map { $0.login.lowercased() })
+        return HostResult(repos: map, orgNames: orgNames, starredURLs: starredURLs, authenticatedUser: user?.login.lowercased())
     }
 
     // MARK: - Private

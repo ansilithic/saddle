@@ -1,3 +1,8 @@
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 import XCTest
 @testable import saddle
 
@@ -8,7 +13,7 @@ final class HookResolverTests: XCTestCase {
     override func setUp() {
         super.setUp()
         hooksDir = "/tmp/saddle-test-hooks-\(UUID().uuidString)"
-        _ = FS.createDirectory(hooksDir)
+        try! FS.createDirectory(hooksDir)
     }
 
     override func tearDown() {
@@ -25,7 +30,6 @@ final class HookResolverTests: XCTestCase {
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.hookName, "user-repo")
         XCTAssertTrue(result?.scriptPath.hasSuffix("hook.sh") ?? false)
-        XCTAssertFalse(result?.isLegacy ?? true)
     }
 
     func testResolveConsolidatedUpdate() {
@@ -34,7 +38,6 @@ final class HookResolverTests: XCTestCase {
         let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .update, hooksDir: hooksDir)
         XCTAssertNotNil(result)
         XCTAssertTrue(result?.scriptPath.hasSuffix("hook.sh") ?? false)
-        XCTAssertFalse(result?.isLegacy ?? true)
     }
 
     func testResolveConsolidatedUninstall() {
@@ -43,130 +46,51 @@ final class HookResolverTests: XCTestCase {
         let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .uninstall, hooksDir: hooksDir)
         XCTAssertNotNil(result)
         XCTAssertTrue(result?.scriptPath.hasSuffix("hook.sh") ?? false)
-        XCTAssertFalse(result?.isLegacy ?? true)
     }
 
-    func testConsolidatedHealthReturnsNil() {
+    func testConsolidatedHealth() {
         createConsolidatedHook(dir: "user-repo")
 
-        // Health lifecycle is supported by consolidated format (unlike legacy directory)
         let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .health, hooksDir: hooksDir)
         XCTAssertNotNil(result)
-        XCTAssertFalse(result?.isLegacy ?? true)
     }
 
-    // MARK: - Legacy directory format
+    // MARK: - Legacy formats NOT resolved
 
-    func testResolveDirectoryInstall() {
-        createHook(dir: "user-repo", script: "install.sh")
+    func testLegacyDirectoryNotResolved() {
+        // Create a legacy directory-style hook (install.sh in dir, no hook.sh)
+        let dirPath = "\(hooksDir!)/user-repo"
+        try! FS.createDirectory(dirPath)
+        try! FS.writeFile("\(dirPath)/install.sh", contents: "#!/bin/sh\n")
+        setExecutable("\(dirPath)/install.sh")
 
         let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .install, hooksDir: hooksDir)
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result?.hookName, "user-repo")
-        XCTAssertTrue(result?.isLegacy ?? false)
+        XCTAssertNil(result, "Legacy directory format should no longer be resolved")
     }
 
-    func testResolveDirectoryUpdate() {
-        createHook(dir: "user-repo", script: "update.sh")
-
-        let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .update, hooksDir: hooksDir)
-        XCTAssertNotNil(result)
-        XCTAssertTrue(result?.scriptPath.hasSuffix("update.sh") ?? false)
-        XCTAssertTrue(result?.isLegacy ?? false)
-    }
-
-    func testResolveDirectoryUninstall() {
-        createHook(dir: "user-repo", script: "uninstall.sh")
-
-        let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .uninstall, hooksDir: hooksDir)
-        XCTAssertNotNil(result)
-        XCTAssertTrue(result?.scriptPath.hasSuffix("uninstall.sh") ?? false)
-        XCTAssertTrue(result?.isLegacy ?? false)
-    }
-
-    func testDirectoryHealthReturnsNil() {
-        createHook(dir: "user-repo", script: "install.sh")
-
-        let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .health, hooksDir: hooksDir)
-        XCTAssertNil(result)
-    }
-
-    // MARK: - Update fallback to install
-
-    func testUpdateFallsBackToInstall() {
-        createHook(dir: "user-repo", script: "install.sh")
-
-        let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .update, hooksDir: hooksDir)
-        XCTAssertNotNil(result)
-        XCTAssertTrue(result?.scriptPath.hasSuffix("install.sh") ?? false)
-        XCTAssertTrue(result?.isLegacy ?? false)
-    }
-
-    func testUpdatePrefersUpdateOverInstall() {
-        createHook(dir: "user-repo", script: "install.sh")
-        createHook(dir: "user-repo", script: "update.sh")
-
-        let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .update, hooksDir: hooksDir)
-        XCTAssertNotNil(result)
-        XCTAssertTrue(result?.scriptPath.hasSuffix("update.sh") ?? false)
-        XCTAssertTrue(result?.isLegacy ?? false)
-    }
-
-    // MARK: - Legacy format
-
-    func testResolveLegacyInstall() {
-        createLegacyHook(name: "user-repo")
+    func testLegacySingleFileNotResolved() {
+        // Create a legacy single-file hook (owner-repo.sh at hooks root)
+        try! FS.writeFile("\(hooksDir!)/user-repo.sh", contents: "#!/bin/sh\n")
+        setExecutable("\(hooksDir!)/user-repo.sh")
 
         let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .install, hooksDir: hooksDir)
-        XCTAssertNotNil(result)
-        XCTAssertTrue(result?.isLegacy ?? false)
+        XCTAssertNil(result, "Legacy single-file format should no longer be resolved")
     }
 
-    func testResolveLegacyUpdate() {
-        createLegacyHook(name: "user-repo")
+    func testLegacyDirectoryNotDetectedByHasHook() {
+        let dirPath = "\(hooksDir!)/user-repo"
+        try! FS.createDirectory(dirPath)
+        try! FS.writeFile("\(dirPath)/install.sh", contents: "#!/bin/sh\n")
+        setExecutable("\(dirPath)/install.sh")
 
-        let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .update, hooksDir: hooksDir)
-        XCTAssertNotNil(result)
-        XCTAssertTrue(result?.isLegacy ?? false)
+        XCTAssertFalse(HookResolver.hasHook(for: "github.com/user/repo", hooksDir: hooksDir))
     }
 
-    func testLegacyNotUsedForUninstall() {
-        createLegacyHook(name: "user-repo")
+    func testLegacySingleFileNotDetectedByHasHook() {
+        try! FS.writeFile("\(hooksDir!)/user-repo.sh", contents: "#!/bin/sh\n")
+        setExecutable("\(hooksDir!)/user-repo.sh")
 
-        let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .uninstall, hooksDir: hooksDir)
-        XCTAssertNil(result)
-    }
-
-    // MARK: - Format precedence
-
-    func testConsolidatedPreferredOverLegacyDirectory() {
-        createConsolidatedHook(dir: "user-repo")
-        createHook(dir: "user-repo", script: "install.sh")
-
-        let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .install, hooksDir: hooksDir)
-        XCTAssertNotNil(result)
-        XCTAssertTrue(result?.scriptPath.hasSuffix("hook.sh") ?? false)
-        XCTAssertFalse(result?.isLegacy ?? true)
-    }
-
-    func testConsolidatedPreferredOverLegacySingleFile() {
-        createConsolidatedHook(dir: "user-repo")
-        createLegacyHook(name: "user-repo")
-
-        let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .install, hooksDir: hooksDir)
-        XCTAssertNotNil(result)
-        XCTAssertTrue(result?.scriptPath.hasSuffix("hook.sh") ?? false)
-        XCTAssertFalse(result?.isLegacy ?? true)
-    }
-
-    func testDirectoryPreferredOverLegacySingleFile() {
-        createHook(dir: "user-repo", script: "install.sh")
-        createLegacyHook(name: "user-repo")
-
-        let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .install, hooksDir: hooksDir)
-        XCTAssertNotNil(result)
-        XCTAssertTrue(result?.scriptPath.hasSuffix("install.sh") ?? false)
-        XCTAssertTrue(result?.isLegacy ?? false)
+        XCTAssertFalse(HookResolver.hasHook(for: "github.com/user/repo", hooksDir: hooksDir))
     }
 
     // MARK: - No hook
@@ -178,8 +102,8 @@ final class HookResolverTests: XCTestCase {
 
     func testNonExecutableIgnored() {
         let dir = "\(hooksDir!)/user-repo"
-        _ = FS.createDirectory(dir)
-        _ = FS.writeFile("\(dir)/install.sh", contents: "#!/bin/sh\n")
+        try! FS.createDirectory(dir)
+        try! FS.writeFile("\(dir)/hook.sh", contents: "#!/bin/bash\ninstall() { :; }\n")
         // Not chmod +x — should be ignored
 
         let result = HookResolver.resolve(for: "github.com/user/repo", lifecycle: .install, hooksDir: hooksDir)
@@ -188,13 +112,8 @@ final class HookResolverTests: XCTestCase {
 
     // MARK: - hasHook
 
-    func testHasHookDirectory() {
-        createHook(dir: "user-repo", script: "install.sh")
-        XCTAssertTrue(HookResolver.hasHook(for: "github.com/user/repo", hooksDir: hooksDir))
-    }
-
-    func testHasHookLegacy() {
-        createLegacyHook(name: "user-repo")
+    func testHasHookConsolidated() {
+        createConsolidatedHook(dir: "user-repo")
         XCTAssertTrue(HookResolver.hasHook(for: "github.com/user/repo", hooksDir: hooksDir))
     }
 
@@ -206,27 +125,13 @@ final class HookResolverTests: XCTestCase {
 
     private func createConsolidatedHook(dir: String) {
         let dirPath = "\(hooksDir!)/\(dir)"
-        _ = FS.createDirectory(dirPath)
+        try! FS.createDirectory(dirPath)
         let hookPath = "\(dirPath)/hook.sh"
-        _ = FS.writeFile(hookPath, contents: "#!/bin/bash\ninstall() { :; }\nupdate() { :; }\nuninstall() { :; }\nhealth() { :; }\n")
-        chmod(hookPath, 0o755)
+        try! FS.writeFile(hookPath, contents: "#!/bin/bash\ninstall() { :; }\nupdate() { :; }\nuninstall() { :; }\nhealth() { :; }\n")
+        setExecutable(hookPath)
     }
 
-    private func createHook(dir: String, script: String) {
-        let dirPath = "\(hooksDir!)/\(dir)"
-        _ = FS.createDirectory(dirPath)
-        let scriptPath = "\(dirPath)/\(script)"
-        _ = FS.writeFile(scriptPath, contents: "#!/bin/sh\n")
-        chmod(scriptPath, 0o755)
-    }
-
-    private func createLegacyHook(name: String) {
-        let path = "\(hooksDir!)/\(name).sh"
-        _ = FS.writeFile(path, contents: "#!/bin/sh\n")
+    private func setExecutable(_ path: String) {
         chmod(path, 0o755)
-    }
-
-    private func chmod(_ path: String, _ mode: mode_t) {
-        Darwin.chmod(path, mode)
     }
 }

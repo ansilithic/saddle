@@ -25,6 +25,7 @@ enum Help {
         Entry(name: "unequip", args: "[<repo>]", description: "Remove a repo from the manifest", tag: nil),
         Entry(name: "manifest", args: "", description: "Show manifest contents and location", tag: nil),
         Entry(name: "info", args: "", description: "Show saddle configuration and status", tag: nil),
+        Entry(name: "auth", args: "[login|status|remove]", description: "Manage authentication", tag: nil),
     ]
 
     static let filterGroups: [FilterGroup] = [
@@ -70,7 +71,7 @@ enum Help {
         let labelWidth = allEntries.map(\.labelWidth).max()! + 3
 
         Swift.print()
-        Swift.print("  \(styled("saddle", .bold, .white))  \(styled("Repo wrangler for macOS.", .dim))")
+        Swift.print("  \(styled("saddle", .bold, .white))  \(styled("Repo wrangler.", .dim))")
         Swift.print()
         Swift.print("  \(styled("Usage", .bold))  \(styled("saddle", .white)) \(styled("<command>", .cyan)) \(styled("[options]", .dim))")
         Swift.print()

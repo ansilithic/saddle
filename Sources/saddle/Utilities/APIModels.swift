@@ -31,33 +31,3 @@ struct GitHubOrg: Decodable {
 struct GitHubUser: Decodable {
     let login: String
 }
-
-struct GitLabUser: Decodable {
-    let username: String
-}
-
-struct GitLabProject: Decodable {
-    let pathWithNamespace: String
-    let visibility: String?
-    let defaultBranch: String?
-    let lastActivityAt: String?
-    let description: String?
-    let starCount: Int?
-    let archived: Bool?
-    let forkedFromProject: ForkedRef?
-
-    enum CodingKeys: String, CodingKey {
-        case pathWithNamespace = "path_with_namespace"
-        case visibility
-        case defaultBranch = "default_branch"
-        case lastActivityAt = "last_activity_at"
-        case description
-        case starCount = "star_count"
-        case archived
-        case forkedFromProject = "forked_from_project"
-    }
-
-    struct ForkedRef: Decodable {
-        let id: Int?
-    }
-}

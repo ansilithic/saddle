@@ -9,7 +9,7 @@ struct ManifestShow: ParsableCommand {
     )
 
     func run() throws {
-        let path = Config.manifestPath
+        let path = Paths.manifestPath
         guard FS.exists(path), let manifest = Parser.parseOrNil(at: path) else {
             Output.error("No manifest found at \(FS.shortenPath(path))")
             throw ExitCode.failure

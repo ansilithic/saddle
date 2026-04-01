@@ -1,7 +1,7 @@
 import Foundation
 
-struct FS {
-    nonisolated(unsafe) static let fm = FileManager.default
+enum FS {
+    nonisolated(unsafe) private static let fm = FileManager.default
 
     static func exists(_ path: String) -> Bool {
         fm.fileExists(atPath: path)
@@ -23,23 +23,16 @@ struct FS {
 
     static func expandPath(_ path: String) -> String {
         guard path.hasPrefix("~") else { return path }
-        if let home = ProcessInfo.processInfo.environment["HOME"] {
-            return home + path.dropFirst()
-        }
-        return (path as NSString).expandingTildeInPath
+        guard let home = ProcessInfo.processInfo.environment["HOME"] else { return path }
+        return home + path.dropFirst()
     }
 
-    static func readFile(_ path: String) -> String? {
-        try? String(contentsOfFile: path, encoding: .utf8)
+    static func readFile(_ path: String) throws -> String {
+        try String(contentsOfFile: path, encoding: .utf8)
     }
 
-    static func createDirectory(_ path: String) -> Bool {
-        do {
-            try fm.createDirectory(atPath: path, withIntermediateDirectories: true)
-            return true
-        } catch {
-            return false
-        }
+    static func createDirectory(_ path: String) throws {
+        try fm.createDirectory(atPath: path, withIntermediateDirectories: true)
     }
 
     static func isExecutable(_ path: String) -> Bool {
@@ -54,13 +47,8 @@ struct FS {
         }
     }
 
-    static func writeFile(_ path: String, contents: String) -> Bool {
-        do {
-            try contents.write(toFile: path, atomically: true, encoding: .utf8)
-            return true
-        } catch {
-            return false
-        }
+    static func writeFile(_ path: String, contents: String) throws {
+        try contents.write(toFile: path, atomically: true, encoding: .utf8)
     }
 
     static func shortenPath(_ path: String) -> String {
@@ -94,7 +82,6 @@ struct FS {
                 guard isDirectory(fullPath) && !isSymlink(fullPath) else { continue }
 
                 if entry.hasPrefix(".") {
-                    // Don't recurse into hidden dirs, but check if they're repos
                     if listDirectory(fullPath).contains(".git") {
                         repos.append(fullPath)
                     }

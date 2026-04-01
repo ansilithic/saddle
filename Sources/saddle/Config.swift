@@ -2,19 +2,10 @@ import CLICore
 import Foundation
 
 struct Config {
-    static var appDir: String { FS.expandPath("~/Library/Application Support/com.ansilithic.saddle") }
-    static var configDir: String { appDir }
-    static var hooksDir: String { "\(appDir)/hooks" }
-    static var stateDir: String { appDir }
-
-    static var manifestPath: String { "\(appDir)/manifest.toml" }
-    static var stateFile: String { "\(stateDir)/state.json" }
-
-
     static func printBanner(manifestPath: String?, mountDir: String, authenticatedUser: String? = nil) {
         var fields: [(String, String)] = []
         if let manifestPath { fields.append(("Manifest", FS.shortenPath(manifestPath))) }
-        fields.append(("Hooks", FS.shortenPath(hooksDir)))
+        fields.append(("Hooks", FS.shortenPath(Paths.hooksDir)))
         fields.append(("Mount", FS.shortenPath(mountDir)))
         if let authenticatedUser { fields.append(("Account", authenticatedUser)) }
 
