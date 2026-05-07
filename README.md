@@ -11,11 +11,7 @@ Repo wrangler — track, organize, and sync every git repository locally (and re
 
 ## Install
 
-```sh
-brew install ansilithic/tap/saddle
-```
-
-Or from source:
+Build from source:
 
 ```sh
 git clone https://github.com/ansilithic/saddle.git
