@@ -48,7 +48,11 @@ enum FS {
     }
 
     static func writeFile(_ path: String, contents: String) throws {
-        try contents.write(toFile: path, atomically: true, encoding: .utf8)
+        // Resolve symlinks first: atomic writes use rename(2) under the hood, which
+        // replaces a symlink with a regular file. Writing through the resolved target
+        // preserves the link so dotfiles-managed configs stay symlinked.
+        let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        try contents.write(toFile: resolved, atomically: true, encoding: .utf8)
     }
 
     static func shortenPath(_ path: String) -> String {
