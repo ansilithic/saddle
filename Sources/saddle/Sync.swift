@@ -73,7 +73,35 @@ struct Sync {
             return RepoEntry(url: url, name: name, path: path, isExisting: path != nil)
         }
 
-        // Concurrent clone/pull + hooks
+        // Resolve dependency levels from `# saddle:depends` annotations in
+        // each repo's hook.sh. Repos within a level run in parallel; levels
+        // run sequentially. Hard-fail on missing deps, self-deps, or cycles.
+        let levels: [[String]]
+        do {
+            levels = try DependencyResolver.resolveLevels(urls)
+        } catch {
+            print()
+            print("  " + styled("Dependency error: \(error)", .red))
+            return
+        }
+
+        // Map normalized URL → entry index for cross-referencing levels with
+        // entries during the concurrent loop below.
+        let urlToEntryIdx: [String: Int] = Dictionary(
+            uniqueKeysWithValues: entries.enumerated().map { (URLHelpers.normalize($1.url), $0) }
+        )
+
+        // Visibility: announce the resolved level structure when deps are in
+        // play (>1 level). Single-level runs print nothing — the wrangle
+        // spinner is sufficient.
+        if levels.count > 1 {
+            let summary = levels.enumerated()
+                .map { "L\($0.offset + 1):\($0.element.count)" }
+                .joined(separator: " ")
+            print("  \(styled("\(levels.count) dependency levels", .bold))  \(styled(summary, .dim))")
+        }
+
+        // Concurrent clone/pull + hooks (level-by-level)
 
         print()
 
@@ -91,10 +119,13 @@ struct Sync {
 
         rowBuffer.withUnsafeMutableBufferPointer { buf in
             nonisolated(unsafe) let buffer = buf
-            DispatchQueue.concurrentPerform(iterations: entryCount) { i in
-                let entry = entries[i]
-                let relativePath = URLHelpers.pathAfterHost(from: entry.url)
-                let startTime = CFAbsoluteTimeGetCurrent()
+            for level in levels {
+                let levelIndices = level.compactMap { urlToEntryIdx[$0] }
+                DispatchQueue.concurrentPerform(iterations: levelIndices.count) { localIdx in
+                    let i = levelIndices[localIdx]
+                    let entry = entries[i]
+                    let relativePath = URLHelpers.pathAfterHost(from: entry.url)
+                    let startTime = CFAbsoluteTimeGetCurrent()
 
                 spinner.activate("\(i)", name: relativePath)
 
@@ -147,7 +178,8 @@ struct Sync {
                 spinner.status = styled("[\(completed)/\(entryCount)]", .dim) + okStr + failStr
                 lock.unlock()
 
-                buffer[i] = RowResult(relativePath: relativePath, outcome: outcome, hookResult: hookResult, duration: duration)
+                    buffer[i] = RowResult(relativePath: relativePath, outcome: outcome, hookResult: hookResult, duration: duration)
+                }
             }
         }
 
