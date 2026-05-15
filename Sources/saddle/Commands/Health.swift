@@ -60,8 +60,8 @@ struct Health: ParsableCommand {
                 if !remoteURL.isEmpty,
                    let resolution = HookResolver.resolve(for: remoteURL, lifecycle: .health) {
                     hasHealthHook = true
-                    let result = HookResolver.execute(resolution, at: repoPath)
-                    if case .ran(_, let exitCode) = result {
+                    let result = HookResolver.execute(resolution, at: repoPath, repoURL: remoteURL)
+                    if case .ran(_, let exitCode, _, _) = result {
                         hookPassed = exitCode == 0
                     }
                 }

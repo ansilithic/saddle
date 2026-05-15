@@ -5,6 +5,10 @@ struct Manifest {
     var mount: String
     var repos: [String]
     var cloneProtocol: CloneProtocol = .ssh
+    /// Per-repo dependency edges declared inline in the manifest.
+    /// Keys and values are normalized URLs (`URLHelpers.normalize`).
+    /// Merged with hook.sh `# saddle:depends` annotations at resolve time.
+    var dependencies: [String: [String]] = [:]
 
     enum CloneProtocol: String {
         case ssh

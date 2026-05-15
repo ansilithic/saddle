@@ -66,6 +66,9 @@ struct State {
         save(state)
     }
 
+    /// True if the last cache-eligible fetch was >24h ago (or never).
+    /// Status uses this to skip the unconditional parallel fetch on
+    /// back-to-back invocations.
     static func shouldFetch() -> Bool {
         let state = load()
         guard let stamp = state.lastFetch,

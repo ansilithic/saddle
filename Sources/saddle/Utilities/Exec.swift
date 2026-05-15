@@ -34,6 +34,51 @@ struct Exec {
         )
     }
 
+    /// Run a process with a graceful timeout — SIGTERM, wait `grace`, then
+    /// SIGKILL. Always returns the output captured so far, even on timeout.
+    /// Used for long-running user hooks where we want the partial output
+    /// for diagnostics rather than the placeholder "timed out after Ns".
+    @discardableResult
+    static func runWithGrace(_ executable: String, args: [String], cwd: String? = nil, env: [String: String]? = nil, timeout: TimeInterval, grace: TimeInterval = 5.0) -> (output: String, exitCode: Int32, timedOut: Bool) {
+        let task = Process()
+        let pipe = Pipe()
+
+        task.executableURL = URL(fileURLWithPath: executable)
+        task.arguments = args
+        task.standardOutput = pipe
+        task.standardError = pipe
+        task.standardInput = nil
+
+        if let cwd { task.currentDirectoryURL = URL(fileURLWithPath: cwd) }
+        if let env {
+            var environment = ProcessInfo.processInfo.environment
+            for (key, value) in env { environment[key] = value }
+            task.environment = environment
+        }
+
+        do { try task.run() } catch { return ("", 1, false) }
+
+        nonisolated(unsafe) var timedOut = false
+        let pid = task.processIdentifier
+        let termWork = DispatchWorkItem {
+            timedOut = true
+            kill(pid, SIGTERM)
+        }
+        let killWork = DispatchWorkItem {
+            if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: termWork)
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout + grace, execute: killWork)
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+        termWork.cancel()
+        killWork.cancel()
+
+        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return (output, task.terminationStatus, timedOut)
+    }
+
     private static func execute(
         executable: String,
         args: [String],
