@@ -186,6 +186,79 @@ final class ParserTests: XCTestCase {
         XCTAssertFalse(contents.contains("protocol"))
     }
 
+    // MARK: - Manifest dependencies ([dependencies] section)
+
+    func testParseDependenciesSection() throws {
+        let toml = """
+            [repos]
+            "github.com/apple/container"
+            "github.com/avranet/avranet"
+            "github.com/avranet/dns"
+            "github.com/avranet/proxy"
+
+            [dependencies]
+            "avranet/avranet" = ["apple/container", "avranet/dns", "avranet/proxy"]
+            """
+        let path = tmpPath()
+        try toml.write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let manifest = try Parser.parse(at: path)
+        XCTAssertEqual(manifest.repos.count, 4)
+        let deps = Set(manifest.dependencies["github.com/avranet/avranet"] ?? [])
+        XCTAssertEqual(deps, Set([
+            "github.com/apple/container",
+            "github.com/avranet/dns",
+            "github.com/avranet/proxy",
+        ]))
+    }
+
+    func testEmptyDependenciesSection() throws {
+        let toml = """
+            [repos]
+            "github.com/user/repo"
+            """
+        let path = tmpPath()
+        try toml.write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let manifest = try Parser.parse(at: path)
+        XCTAssertTrue(manifest.dependencies.isEmpty)
+    }
+
+    func testSaveRoundTripWithDependencies() throws {
+        var manifest = Manifest(
+            mount: NSHomeDirectory() + "/Developer",
+            repos: ["github.com/user/orchestrator", "github.com/user/dep1", "github.com/user/dep2"]
+        )
+        manifest.dependencies["github.com/user/orchestrator"] = ["github.com/user/dep1", "github.com/user/dep2"]
+        let path = tmpPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        try Parser.save(manifest, to: path)
+        let loaded = try Parser.parse(at: path)
+
+        XCTAssertEqual(loaded.dependencies["github.com/user/orchestrator"]?.count, 2)
+    }
+
+    // MARK: - DependencyResolver merging
+
+    func testManifestDependenciesResolveIntoLevels() throws {
+        let urls = [
+            "github.com/a/foo",
+            "github.com/a/bar",
+            "github.com/a/orchestrator",
+        ]
+        let manifestDeps: [String: [String]] = [
+            "github.com/a/orchestrator": ["github.com/a/foo", "github.com/a/bar"],
+        ]
+        let resolved = try DependencyResolver.resolveLevels(urls, manifestDeps: manifestDeps)
+
+        XCTAssertEqual(resolved.levels.count, 2)
+        XCTAssertEqual(Set(resolved.levels[0]), ["github.com/a/foo", "github.com/a/bar"])
+        XCTAssertEqual(resolved.levels[1], ["github.com/a/orchestrator"])
+    }
+
     // MARK: - URL Helpers
 
     func testSSHURLFromNormalized() {

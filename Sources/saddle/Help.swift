@@ -18,9 +18,11 @@ enum Help {
     }
 
     static let commands: [Entry] = [
-        Entry(name: "status", args: "[filters]", description: "Show status of all repos", tag: "default"),
-        Entry(name: "health", args: "[filters]", description: "Show file-presence health for all repos", tag: nil),
+        Entry(name: "(no command)", args: "[filters]", description: "Show status of all repos", tag: "default"),
         Entry(name: "up", args: "", description: "Clone missing repos, pull updates, and run hooks", tag: nil),
+        Entry(name: "deps", args: "[<repo>]", description: "Show the dependency graph", tag: nil),
+        Entry(name: "stats", args: "", description: "Per-repo hook duration history", tag: nil),
+        Entry(name: "health", args: "[filters]", description: "Show file-presence health for all repos", tag: nil),
         Entry(name: "equip", args: "[<repo>]", description: "Add a repo to the manifest", tag: nil),
         Entry(name: "unequip", args: "[<repo>]", description: "Remove a repo from the manifest", tag: nil),
         Entry(name: "manifest", args: "", description: "Show manifest contents and location", tag: nil),
@@ -58,6 +60,7 @@ enum Help {
         ]),
         FilterGroup(title: "Other", entries: [
             Entry(name: "--owner", args: "<owner>", description: "Filter by repository owner", tag: nil),
+            Entry(name: "--force-fetch", args: "", description: "Fetch all remotes regardless of cache age", tag: nil),
         ]),
     ]
 
@@ -73,7 +76,8 @@ enum Help {
         Swift.print()
         Swift.print("  \(styled("saddle", .bold, .white))  \(styled("Repo wrangler.", .dim))")
         Swift.print()
-        Swift.print("  \(styled("Usage", .bold))  \(styled("saddle", .white)) \(styled("<command>", .cyan)) \(styled("[options]", .dim))")
+        Swift.print("  \(styled("Usage", .bold))  \(styled("saddle", .white)) \(styled("[filters]", .dim))                    \(styled("Show repo status (default)", .dim))")
+        Swift.print("         \(styled("saddle", .white)) \(styled("<command>", .cyan)) \(styled("[options]", .dim))         \(styled("Run a subcommand", .dim))")
         Swift.print()
         printSection("Commands", commands, labelWidth: labelWidth)
         printFilterSections(labelWidth: labelWidth)

@@ -34,7 +34,14 @@ struct Up: ParsableCommand {
 
         print("  \(styled("\(manifest.repos.count) repos declared, mount at \(FS.shortenPath(manifest.mount))", .dim))")
 
-        Sync.syncDeclaredRepos(manifest.repos, mount: manifest.mount, cloneProtocol: manifest.cloneProtocol, runHooks: !noHooks, forceHooks: forceHooks)
+        Sync.syncDeclaredRepos(
+            manifest.repos,
+            mount: manifest.mount,
+            cloneProtocol: manifest.cloneProtocol,
+            manifestDeps: manifest.dependencies,
+            runHooks: !noHooks,
+            forceHooks: forceHooks
+        )
 
         State.touchLastRun()
     }
