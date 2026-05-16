@@ -28,7 +28,7 @@ struct KeychainCredentialStore: CredentialStoreProtocol {
     private let keychain = "\(NSHomeDirectory())/Library/Keychains/avranet.keychain-db"
 
     // The avranet unlock password lives in login.keychain as a generic
-    // password (svce="com.avranet.keychain.unlock-password", acct="avranet").
+    // password (svce="net.avra.keychain.unlock-password", acct="avranet").
     // login.keychain auto-unlocks at GUI login (HackBookAir's local terminal,
     // launchd-fired tasks). For SSH sessions, login.keychain is locked
     // until the user runs `security unlock-keychain ~/Library/Keychains/
@@ -39,7 +39,7 @@ struct KeychainCredentialStore: CredentialStoreProtocol {
     // skip the unlock attempt and let the subsequent `find-generic-password`
     // call return nil. Caller treats nil as "not authenticated."
     private let loginKC      = "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"
-    private let unlockSvc    = "com.avranet.keychain.unlock-password"
+    private let unlockSvc    = "net.avra.keychain.unlock-password"
     private let unlockAcct   = "avranet"
 
     private func unlockIfNeeded() {
