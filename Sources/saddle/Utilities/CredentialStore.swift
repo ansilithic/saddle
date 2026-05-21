@@ -20,29 +20,31 @@ enum CredentialStore {
 struct KeychainCredentialStore: CredentialStoreProtocol {
     private let service = "com.ansilithic.saddle"
 
-    // Pin lookups to the dedicated acme keychain rather than relying on
-    // the user's keychain search list. Explicit > implicit: a future
-    // `security list-keychains -s …` change can't silently break saddle's
-    // auth, and the user's secret stays out of login.keychain alongside
-    // Apple-managed items.
-    private let keychain = "\(NSHomeDirectory())/Library/Keychains/acme.keychain-db"
+    private let env = ProcessInfo.processInfo.environment
 
-    // The acme unlock password lives in login.keychain as a generic
-    // password (svce="com.example.unlock-password", acct="acme").
-    // login.keychain auto-unlocks at GUI login (the local host's local terminal,
-    // launchd-fired tasks). For SSH sessions, login.keychain is locked
-    // until the user runs `security unlock-keychain ~/Library/Keychains/
-    // login.keychain-db` once per session — at which point this lookup
-    // succeeds and we unlock acme for the rest of the session.
+    // By default saddle stores tokens via the login keychain's default search
+    // list. Set SADDLE_KEYCHAIN to an absolute keychain path to instead pin
+    // lookups to a dedicated keychain — explicit > implicit, so a later
+    // `security list-keychains -s …` change can't silently break saddle's auth,
+    // and the token stays out of login.keychain alongside Apple-managed items.
+    private var keychain: String? { env["SADDLE_KEYCHAIN"] }
+
+    // A dedicated keychain may be locked in non-GUI sessions (e.g. SSH). If so,
+    // saddle can auto-unlock it using a password stored in the login keychain
+    // as a generic password; configure that lookup with SADDLE_UNLOCK_SVC and
+    // SADDLE_UNLOCK_ACCT. login.keychain auto-unlocks at GUI login; over SSH the
+    // user runs `security unlock-keychain ~/Library/Keychains/login.keychain-db`
+    // once per session, after which this lookup succeeds.
     //
-    // Best-effort: if login is locked or the item is missing, we silently
-    // skip the unlock attempt and let the subsequent `find-generic-password`
-    // call return nil. Caller treats nil as "not authenticated."
-    private let loginKC      = "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"
-    private let unlockSvc    = "com.example.unlock-password"
-    private let unlockAcct   = "acme"
+    // Best-effort: if any of these are unset/locked/missing we skip the unlock
+    // and let the subsequent `find-generic-password` return nil. The caller
+    // treats nil as "not authenticated."
+    private let loginKC = "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"
+    private var unlockSvc: String? { env["SADDLE_UNLOCK_SVC"] }
+    private var unlockAcct: String? { env["SADDLE_UNLOCK_ACCT"] }
 
     private func unlockIfNeeded() {
+        guard let keychain, let unlockSvc, let unlockAcct else { return }
         let (output, rc) = Exec.run("/usr/bin/security", args: [
             "find-generic-password", "-s", unlockSvc, "-a", unlockAcct, "-w", loginKC
         ], timeout: 3)
@@ -56,18 +58,18 @@ struct KeychainCredentialStore: CredentialStoreProtocol {
 
     func get(account: String) -> String? {
         unlockIfNeeded()
-        let (output, rc) = Exec.run("/usr/bin/security", args: [
-            "find-generic-password", "-s", service, "-a", account, "-w", keychain
-        ], timeout: 3)
+        var args = ["find-generic-password", "-s", service, "-a", account, "-w"]
+        if let keychain { args.append(keychain) }
+        let (output, rc) = Exec.run("/usr/bin/security", args: args, timeout: 3)
         return rc == 0 && !output.isEmpty ? output : nil
     }
 
     func set(account: String, token: String) throws {
         unlockIfNeeded()
         // -U updates if exists, adds if not
-        let (_, rc) = Exec.run("/usr/bin/security", args: [
-            "add-generic-password", "-U", "-s", service, "-a", account, "-w", token, keychain
-        ], timeout: 3)
+        var args = ["add-generic-password", "-U", "-s", service, "-a", account, "-w", token]
+        if let keychain { args.append(keychain) }
+        let (_, rc) = Exec.run("/usr/bin/security", args: args, timeout: 3)
         if rc != 0 {
             throw CredentialError.storeFailed("Keychain write failed (exit \(rc))")
         }
@@ -75,9 +77,9 @@ struct KeychainCredentialStore: CredentialStoreProtocol {
 
     func delete(account: String) throws {
         unlockIfNeeded()
-        let (_, rc) = Exec.run("/usr/bin/security", args: [
-            "delete-generic-password", "-s", service, "-a", account, keychain
-        ], timeout: 3)
+        var args = ["delete-generic-password", "-s", service, "-a", account]
+        if let keychain { args.append(keychain) }
+        let (_, rc) = Exec.run("/usr/bin/security", args: args, timeout: 3)
         if rc != 0 {
             throw CredentialError.storeFailed("Keychain delete failed (exit \(rc))")
         }
