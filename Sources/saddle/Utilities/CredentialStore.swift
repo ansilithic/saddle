@@ -23,16 +23,16 @@ struct KeychainCredentialStore: CredentialStoreProtocol {
     private let env = ProcessInfo.processInfo.environment
 
     // By default saddle stores tokens via the login keychain's default search
-    // list. Set SADDLE_KEYCHAIN to an absolute keychain path to instead pin
+    // list. Set KEYCHAIN_PATH to an absolute keychain path to instead pin
     // lookups to a dedicated keychain — explicit > implicit, so a later
     // `security list-keychains -s …` change can't silently break saddle's auth,
     // and the token stays out of login.keychain alongside Apple-managed items.
-    private var keychain: String? { env["SADDLE_KEYCHAIN"] }
+    private var keychain: String? { env["KEYCHAIN_PATH"] }
 
     // A dedicated keychain may be locked in non-GUI sessions (e.g. SSH). If so,
     // saddle can auto-unlock it using a password stored in the login keychain
-    // as a generic password; configure that lookup with SADDLE_UNLOCK_SVC and
-    // SADDLE_UNLOCK_ACCT. login.keychain auto-unlocks at GUI login; over SSH the
+    // as a generic password; configure that lookup with KEYCHAIN_UNLOCK_SVC and
+    // KEYCHAIN_UNLOCK_ACCT. login.keychain auto-unlocks at GUI login; over SSH the
     // user runs `security unlock-keychain ~/Library/Keychains/login.keychain-db`
     // once per session, after which this lookup succeeds.
     //
@@ -40,8 +40,8 @@ struct KeychainCredentialStore: CredentialStoreProtocol {
     // and let the subsequent `find-generic-password` return nil. The caller
     // treats nil as "not authenticated."
     private let loginKC = "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"
-    private var unlockSvc: String? { env["SADDLE_UNLOCK_SVC"] }
-    private var unlockAcct: String? { env["SADDLE_UNLOCK_ACCT"] }
+    private var unlockSvc: String? { env["KEYCHAIN_UNLOCK_SVC"] }
+    private var unlockAcct: String? { env["KEYCHAIN_UNLOCK_ACCT"] }
 
     private func unlockIfNeeded() {
         guard let keychain, let unlockSvc, let unlockAcct else { return }
