@@ -30,39 +30,31 @@ struct KeychainCredentialStore: CredentialStoreProtocol {
     private var keychain: String? { env["KEYCHAIN_PATH"] }
 
     // A dedicated keychain may be locked in non-GUI sessions (e.g. SSH). If so,
-    // saddle can auto-unlock it using a password stored as a generic password;
+    // saddle auto-unlocks it using a password stored as a generic password;
     // configure that lookup with KEYCHAIN_UNLOCK_SVC and KEYCHAIN_UNLOCK_ACCT.
     //
-    // The unlock password is sought in two keychains, in order:
-    //   1. login.keychain  — auto-unlocks at GUI login (the desktop case).
-    //   2. System.keychain — auto-unlocks at boot from the root-only
-    //      /var/db/SystemKey, with no session or GUI login (the headless-server
-    //      case, where login.keychain never unlocks). Access is still gated by
-    //      the item's ACL.
-    // First non-empty hit wins, so auto-unlock survives a headless reboot
-    // without a GUI session and without a per-session manual unlock.
+    // The unlock password is read from the System keychain — machine-domain,
+    // auto-unlocked at boot from the root-only /var/db/SystemKey, with no session
+    // or GUI login required (so it works headless and across SSH sessions); access
+    // is still gated by the item's ACL. This is the single supported source: no
+    // env-var or login-keychain fallbacks. On a desktop where the dedicated
+    // keychain is already unlocked at GUI login the unlock is simply a no-op and
+    // the subsequent read succeeds regardless.
     //
-    // Best-effort: if any of these are unset/locked/missing we skip the unlock
-    // and let the subsequent `find-generic-password` return nil. The caller
-    // treats nil as "not authenticated."
-    private let unlockKeychains = [
-        "\(NSHomeDirectory())/Library/Keychains/login.keychain-db",
-        "/Library/Keychains/System.keychain",
-    ]
+    // Best-effort: if any of these are unset/missing we skip the unlock and let
+    // the subsequent `find-generic-password` return nil. The caller treats nil
+    // as "not authenticated."
+    private let unlockPwKeychain = "/Library/Keychains/System.keychain"
     private var unlockSvc: String? { env["KEYCHAIN_UNLOCK_SVC"] }
     private var unlockAcct: String? { env["KEYCHAIN_UNLOCK_ACCT"] }
 
     private func unlockIfNeeded() {
         guard let keychain, let unlockSvc, let unlockAcct else { return }
-        var pass = ""
-        for kc in unlockKeychains {
-            let (output, rc) = Exec.run("/usr/bin/security", args: [
-                "find-generic-password", "-s", unlockSvc, "-a", unlockAcct, "-w", kc
-            ], timeout: 3)
-            guard rc == 0 else { continue }
-            let p = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !p.isEmpty { pass = p; break }
-        }
+        let (output, rc) = Exec.run("/usr/bin/security", args: [
+            "find-generic-password", "-s", unlockSvc, "-a", unlockAcct, "-w", unlockPwKeychain
+        ], timeout: 3)
+        guard rc == 0 else { return }
+        let pass = output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !pass.isEmpty else { return }
         _ = Exec.run("/usr/bin/security", args: [
             "unlock-keychain", "-p", pass, keychain
