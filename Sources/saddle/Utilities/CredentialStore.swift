@@ -30,26 +30,39 @@ struct KeychainCredentialStore: CredentialStoreProtocol {
     private var keychain: String? { env["KEYCHAIN_PATH"] }
 
     // A dedicated keychain may be locked in non-GUI sessions (e.g. SSH). If so,
-    // saddle can auto-unlock it using a password stored in the login keychain
-    // as a generic password; configure that lookup with KEYCHAIN_UNLOCK_SVC and
-    // KEYCHAIN_UNLOCK_ACCT. login.keychain auto-unlocks at GUI login; over SSH the
-    // user runs `security unlock-keychain ~/Library/Keychains/login.keychain-db`
-    // once per session, after which this lookup succeeds.
+    // saddle can auto-unlock it using a password stored as a generic password;
+    // configure that lookup with KEYCHAIN_UNLOCK_SVC and KEYCHAIN_UNLOCK_ACCT.
+    //
+    // The unlock password is sought in two keychains, in order:
+    //   1. login.keychain  — auto-unlocks at GUI login (the desktop case).
+    //   2. System.keychain — auto-unlocks at boot from the root-only
+    //      /var/db/SystemKey, with no session or GUI login (the headless-server
+    //      case, where login.keychain never unlocks). Access is still gated by
+    //      the item's ACL.
+    // First non-empty hit wins, so auto-unlock survives a headless reboot
+    // without a GUI session and without a per-session manual unlock.
     //
     // Best-effort: if any of these are unset/locked/missing we skip the unlock
     // and let the subsequent `find-generic-password` return nil. The caller
     // treats nil as "not authenticated."
-    private let loginKC = "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"
+    private let unlockKeychains = [
+        "\(NSHomeDirectory())/Library/Keychains/login.keychain-db",
+        "/Library/Keychains/System.keychain",
+    ]
     private var unlockSvc: String? { env["KEYCHAIN_UNLOCK_SVC"] }
     private var unlockAcct: String? { env["KEYCHAIN_UNLOCK_ACCT"] }
 
     private func unlockIfNeeded() {
         guard let keychain, let unlockSvc, let unlockAcct else { return }
-        let (output, rc) = Exec.run("/usr/bin/security", args: [
-            "find-generic-password", "-s", unlockSvc, "-a", unlockAcct, "-w", loginKC
-        ], timeout: 3)
-        guard rc == 0 else { return }
-        let pass = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        var pass = ""
+        for kc in unlockKeychains {
+            let (output, rc) = Exec.run("/usr/bin/security", args: [
+                "find-generic-password", "-s", unlockSvc, "-a", unlockAcct, "-w", kc
+            ], timeout: 3)
+            guard rc == 0 else { continue }
+            let p = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !p.isEmpty { pass = p; break }
+        }
         guard !pass.isEmpty else { return }
         _ = Exec.run("/usr/bin/security", args: [
             "unlock-keychain", "-p", pass, keychain
