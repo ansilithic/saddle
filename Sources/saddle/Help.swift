@@ -1,4 +1,3 @@
-import CLICore
 
 enum Help {
     struct Entry {

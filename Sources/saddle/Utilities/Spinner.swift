@@ -5,7 +5,6 @@ import Glibc
 #elseif canImport(Musl)
 import Musl
 #endif
-import CLICore
 import Foundation
 
 final class ProgressSpinner: @unchecked Sendable {

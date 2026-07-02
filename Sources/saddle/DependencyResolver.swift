@@ -1,4 +1,3 @@
-import CLICore
 import Foundation
 
 /// Topologically orders manifest URLs based on the `[dependencies]`

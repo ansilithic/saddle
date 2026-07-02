@@ -1,7 +1,6 @@
 #if canImport(os)
 import os
 #endif
-import CLICore
 import Foundation
 
 enum HookResult {

@@ -1,5 +1,4 @@
 import ArgumentParser
-import CLICore
 import Foundation
 
 @main

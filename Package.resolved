@@ -1,5 +1,5 @@
 {
-  "originHash" : "bec6dc2c662541072f7b5b3f8eb3ee881c31859acb38b725f217e88e5a77abcb",
+  "originHash" : "ac8f9fe691d60e3f406fa811efff3c1968518baed5d6ccdf3281f807234bc37c",
   "pins" : [
     {
       "identity" : "swift-argument-parser",
@@ -8,15 +8,6 @@
       "state" : {
         "revision" : "c5d11a805e765f52ba34ec7284bd4fcd6ba68615",
         "version" : "1.7.0"
-      }
-    },
-    {
-      "identity" : "swift-cli-core",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ansilithic/swift-cli-core.git",
-      "state" : {
-        "revision" : "1d24726987bcd5b9adf4adeaffd9e0c64f878533",
-        "version" : "1.2.1"
       }
     }
   ],

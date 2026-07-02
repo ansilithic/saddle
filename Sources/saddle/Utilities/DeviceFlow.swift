@@ -1,4 +1,3 @@
-import CLICore
 import Foundation
 
 enum DeviceFlow {

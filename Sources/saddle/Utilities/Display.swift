@@ -1,4 +1,3 @@
-import CLICore
 
 /// Style a repo path: dim the prefix (owner/), bold the repo name.
 func styledRepoPath(_ path: String) -> String {
