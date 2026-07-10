@@ -44,7 +44,7 @@ saddle equip user/cool-cli
 Or create the manifest directly:
 
 ```toml
-# $XDG_CONFIG_HOME/saddle/manifest.toml
+# $XDG_CONFIG_HOME/com.ansilithic.saddle/manifest.toml
 mount = "~/Developer"
 
 [repos]
@@ -77,7 +77,7 @@ saddle health --owner <name> # filter by org/owner
 Optional per-repo scripts that run during sync. Each hook is a single `hook.sh` file with functions for different lifecycle phases. The script's working directory is the repo itself.
 
 ```
-$XDG_CONFIG_HOME/saddle/hooks/user-dotfiles/hook.sh
+$XDG_CONFIG_HOME/com.ansilithic.saddle/hooks/user-dotfiles/hook.sh
 ```
 
 ```bash
@@ -110,11 +110,11 @@ Saddle follows the [XDG Base Directory Specification](https://specifications.fre
 
 | Purpose | Location |
 |---------|----------|
-| Config (manifest, hooks) | `$XDG_CONFIG_HOME/saddle/` |
-| Data (state, credentials) | `$XDG_DATA_HOME/saddle/` |
-| Cache (API cache) | `$XDG_CACHE_HOME/saddle/` |
+| Config (manifest, hooks) | `$XDG_CONFIG_HOME/com.ansilithic.saddle/` |
+| Data (state, credentials) | `$XDG_DATA_HOME/com.ansilithic.saddle/` |
+| Cache (API cache) | `$XDG_CACHE_HOME/com.ansilithic.saddle/` |
 
-On macOS with default XDG variables, these resolve to `~/Library/Application Support/saddle/` and `~/Library/Caches/saddle/`.
+On macOS with default XDG variables, these resolve to `~/Library/Application Support/com.ansilithic.saddle/` and `~/Library/Caches/com.ansilithic.saddle/`.
 
 ## AI agent usage
 
