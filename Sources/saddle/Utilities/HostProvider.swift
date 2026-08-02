@@ -2,7 +2,6 @@ import Foundation
 
 struct HostResult: Sendable {
     var repos: [String: RemoteRepoInfo] = [:]
-    var orgNames: Set<String> = []
     var starredURLs: Set<String> = []
     var authenticatedUser: String?
 }

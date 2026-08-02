@@ -41,7 +41,5 @@ struct Up: ParsableCommand {
             runHooks: !noHooks,
             forceHooks: forceHooks
         )
-
-        State.touchLastRun()
     }
 }

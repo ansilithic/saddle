@@ -9,11 +9,6 @@ enum HookResult {
     case skipped(name: String)
     case timedOut(name: String, ranSeconds: Double, threshold: Double, median: Double, tail: String)
 
-    var isSuccess: Bool {
-        if case .ran(_, let exit, _, _) = self { return exit == 0 }
-        return false
-    }
-
     var isFailure: Bool {
         switch self {
         case .ran(_, let exit, _, _): return exit != 0

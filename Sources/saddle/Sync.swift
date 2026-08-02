@@ -20,7 +20,6 @@ struct Sync {
     struct RowResult {
         let relativePath: String
         let url: String
-        let normalized: String
         let level: Int
         let outcome: SyncOutcome
         let hookResult: HookResult?
@@ -137,7 +136,7 @@ struct Sync {
         nonisolated(unsafe) var failedCount = 0
         nonisolated(unsafe) var cascadedSet = Set<String>()  // hooks that ran successfully — fire downstream cascades
         var rowBuffer = Array(
-            repeating: RowResult(relativePath: "", url: "", normalized: "", level: 0, outcome: .unchanged, hookResult: nil, duration: 0, trigger: .noOp),
+            repeating: RowResult(relativePath: "", url: "", level: 0, outcome: .unchanged, hookResult: nil, duration: 0, trigger: .noOp),
             count: entryCount
         )
 
@@ -276,7 +275,6 @@ struct Sync {
                     buffer[i] = RowResult(
                         relativePath: relativePath,
                         url: entry.url,
-                        normalized: entry.normalized,
                         level: levelIdx + 1,
                         outcome: outcome,
                         hookResult: hookResult,

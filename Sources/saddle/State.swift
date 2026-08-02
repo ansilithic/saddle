@@ -2,7 +2,6 @@ import Foundation
 
 struct SaddleState: Codable {
     var version: Int = 1
-    var lastRun: String?
     var lastFetch: String?
 }
 
@@ -22,7 +21,6 @@ struct HostCache: Codable {
     func toResult() -> HostResult {
         HostResult(
             repos: repos,
-            orgNames: [],
             starredURLs: Set(starredURLs),
             authenticatedUser: authenticatedUser
         )
@@ -52,12 +50,6 @@ struct State {
         } catch {
             Log.error("Failed to save state: \(error)")
         }
-    }
-
-    static func touchLastRun() {
-        var state = load()
-        state.lastRun = DateFormatting.iso8601.string(from: Date())
-        save(state)
     }
 
     static func touchLastFetch() {

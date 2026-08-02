@@ -4,9 +4,7 @@ struct Manifest {
     var mount: String
     var repos: [String]
     var cloneProtocol: CloneProtocol = .ssh
-    /// Per-repo dependency edges declared inline in the manifest.
-    /// Keys and values are normalized URLs (`URLHelpers.normalize`).
-    /// Merged with hook.sh `# saddle:depends` annotations at resolve time.
+    /// Manifest-owned dependency edges, keyed by normalized repository URL.
     var dependencies: [String: [String]] = [:]
 
     enum CloneProtocol: String {
@@ -54,7 +52,6 @@ struct RemoteRepoInfo: Codable {
 
 struct HealthInfo {
     let relativePath: String
-    let fullPath: String
     let remoteURL: String?
     let owner: String
     let saddled: Bool
@@ -80,7 +77,6 @@ struct HealthInfo {
 
 struct RepoInfo {
     let relativePath: String
-    let fullPath: String
     let remoteURL: String?
     let owner: String
     let branch: String

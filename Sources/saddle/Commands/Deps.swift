@@ -27,7 +27,7 @@ struct Deps: ParsableCommand {
             return
         }
 
-        // Resolve full dep graph (manifest + hook.sh annotations merged).
+        // Resolve the manifest-owned dependency graph.
         let resolved: (levels: [[String]], deps: [String: [String]])
         do {
             resolved = try DependencyResolver.resolveLevels(manifest.repos, manifestDeps: manifest.dependencies)

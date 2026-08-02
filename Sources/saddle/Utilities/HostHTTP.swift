@@ -11,16 +11,6 @@ struct HostHTTP: Sendable {
         URLSession(configuration: .default)
     }()
 
-    func reachable(timeout: TimeInterval = 2) async -> Bool {
-        guard let url = URL(string: baseURL) else { return false }
-        var request = URLRequest(url: url)
-        request.httpMethod = "HEAD"
-        request.timeoutInterval = timeout
-        guard let (_, response) = try? await Self.session.data(for: request),
-              let http = response as? HTTPURLResponse else { return false }
-        return http.statusCode < 500
-    }
-
     func get(_ path: String, token: String, params: [(String, String)] = []) async -> Data? {
         var urlString = baseURL + path
         if !params.isEmpty {

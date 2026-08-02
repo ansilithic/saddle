@@ -64,7 +64,6 @@ struct Saddle: AsyncParsableCommand {
 
     private struct PartialInfo {
         let relativePath: String
-        let fullPath: String
         let git: GitHelpers.GitInfo
         let saddled: Bool
         let hasHook: Bool
@@ -229,7 +228,7 @@ struct Saddle: AsyncParsableCommand {
 
         // Phase 1: scan local state (no network)
         let emptyGit = GitHelpers.GitInfo(remoteURL: nil, branch: "", status: "", ahead: 0, behind: 0, lastCommitTime: "")
-        var partials = Array(repeating: PartialInfo(relativePath: "", fullPath: "", git: emptyGit, saddled: false, hasHook: false), count: repoCount)
+        var partials = Array(repeating: PartialInfo(relativePath: "", git: emptyGit, saddled: false, hasHook: false), count: repoCount)
 
         let scanLock = NSLock()
         nonisolated(unsafe) var scanned = 0
@@ -244,7 +243,7 @@ struct Saddle: AsyncParsableCommand {
                 let saddled = normalized.map { normalizedDeclared.contains($0) } ?? false
                 let hasHook = git.remoteURL.map { HookResolver.hasHook(for: $0) } ?? false
 
-                buffer[i] = PartialInfo(relativePath: relativePath, fullPath: repoPath, git: git, saddled: saddled, hasHook: hasHook)
+                buffer[i] = PartialInfo(relativePath: relativePath, git: git, saddled: saddled, hasHook: hasHook)
 
                 scanLock.lock()
                 scanned += 1
@@ -281,7 +280,7 @@ struct Saddle: AsyncParsableCommand {
                         let saddled = normalized.map { normalizedDeclared.contains($0) } ?? false
                         let hasHook = git.remoteURL.map { HookResolver.hasHook(for: $0) } ?? false
                         let relativePath = String(repoPath.dropFirst(devDir.count + 1))
-                        buffer[i] = PartialInfo(relativePath: relativePath, fullPath: repoPath, git: git, saddled: saddled, hasHook: hasHook)
+                        buffer[i] = PartialInfo(relativePath: relativePath, git: git, saddled: saddled, hasHook: hasHook)
                     }
 
                     fetchLock.lock()
@@ -298,7 +297,9 @@ struct Saddle: AsyncParsableCommand {
                 }
             }
 
-            State.touchLastFetch()
+            if fetchCount == 0 || failedCount < fetchCount {
+                State.touchLastFetch()
+            }
         }
 
         let hostResult = await hostResultTask
@@ -329,7 +330,6 @@ struct Saddle: AsyncParsableCommand {
             let isStarred = normalized.map { hostResult.starredURLs.contains($0) } ?? false
             let repo = RepoInfo(
                 relativePath: p.relativePath,
-                fullPath: p.fullPath,
                 remoteURL: p.git.remoteURL.map { URLHelpers.normalize($0) },
                 owner: owner.isEmpty ? "local" : owner,
                 branch: p.git.branch,
@@ -371,7 +371,6 @@ struct Saddle: AsyncParsableCommand {
             let pushedTime = Self.relativeTime(from: info.pushedAt)
             repos.append(RepoInfo(
                 relativePath: name,
-                fullPath: "",
                 remoteURL: normalizedURL,
                 owner: owner.isEmpty ? host : owner,
                 branch: info.defaultBranch,
@@ -400,7 +399,6 @@ struct Saddle: AsyncParsableCommand {
             let host = URLHelpers.host(from: normalizedURL)
             repos.append(RepoInfo(
                 relativePath: name,
-                fullPath: "",
                 remoteURL: normalizedURL,
                 owner: owner.isEmpty ? host : owner,
                 branch: "",

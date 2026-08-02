@@ -33,7 +33,7 @@ struct Health: ParsableCommand {
         let repoCount = discoveredPaths.count
 
         var results = Array(repeating: HealthInfo(
-            relativePath: "", fullPath: "", remoteURL: nil, owner: "local",
+            relativePath: "", remoteURL: nil, owner: "local",
             saddled: false, hasReadme: false, hasGitignore: false,
             hasMakefile: false, hasLicense: false,
             hasHealthHook: false, hookPassed: false
@@ -67,7 +67,6 @@ struct Health: ParsableCommand {
 
                 buffer[i] = HealthInfo(
                     relativePath: relativePath,
-                    fullPath: repoPath,
                     remoteURL: normalized,
                     owner: owner.isEmpty ? "local" : owner,
                     saddled: saddled,

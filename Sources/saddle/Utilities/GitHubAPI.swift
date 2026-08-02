@@ -104,8 +104,7 @@ struct GitHub: Sendable {
             }
         }
 
-        let orgNames = Set(orgList.map { $0.login.lowercased() })
-        return HostResult(repos: map, orgNames: orgNames, starredURLs: starredURLs, authenticatedUser: user?.login.lowercased())
+        return HostResult(repos: map, starredURLs: starredURLs, authenticatedUser: user?.login.lowercased())
     }
 
     // MARK: - Private
