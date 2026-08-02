@@ -25,6 +25,7 @@ struct Unequip: ParsableCommand {
 
         manifest.repos.remove(at: index)
         try Parser.save(manifest, to: manifestPath)
+        Timings.prune(keeping: manifest.repos)
         print(styled("Unequipped", .yellow) + " " + normalized)
     }
 

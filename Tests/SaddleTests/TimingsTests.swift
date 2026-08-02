@@ -47,4 +47,16 @@ final class TimingsTests: XCTestCase {
         XCTAssertEqual(stats?.last, 35)
         XCTAssertNotNil(Timings.adaptiveTimeout(for: url, lifecycle: .update, directory: directory))
     }
+
+    func testPruneRemovesOnlyUnequippedRepositories() {
+        let retained = "github.com/example/retained"
+        let removed = "github.com/example/removed"
+        Timings.record(url: retained, lifecycle: .health, duration: 1, directory: directory)
+        Timings.record(url: removed, lifecycle: .update, duration: 2, directory: directory)
+
+        Timings.prune(keeping: [retained], directory: directory)
+
+        XCTAssertNotNil(Timings.stats(for: retained, lifecycle: .health, directory: directory))
+        XCTAssertNil(Timings.stats(for: removed, lifecycle: .update, directory: directory))
+    }
 }

@@ -34,16 +34,4 @@ enum Paths {
     private static let defaultCacheBase = "~/.cache"
     #endif
 
-    /// Migrate from old bare-name `saddle` directory to com.ansilithic.saddle if needed.
-    static func migrateIfNeeded() {
-        let oldDir = FS.expandPath("~/Library/Application Support/saddle")
-        guard FS.isDirectory(oldDir), !FS.isDirectory(configDir) else { return }
-        do {
-            let parent = URL(fileURLWithPath: configDir).deletingLastPathComponent().path
-            try FS.createDirectory(parent)
-            try FileManager.default.moveItem(atPath: oldDir, toPath: configDir)
-        } catch {
-            Log.error("Migration from bare saddle dir failed: \(error)")
-        }
-    }
 }

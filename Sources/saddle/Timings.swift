@@ -84,6 +84,24 @@ struct Timings {
         }
     }
 
+    static func prune(keeping urls: [String], directory: String = dir) {
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: directory) else {
+            return
+        }
+        let retained = Set(urls.flatMap { url in
+            Lifecycle.allCases.map {
+                URL(fileURLWithPath: path(for: url, lifecycle: $0, directory: directory)).lastPathComponent
+            }
+        })
+        for file in files where file.hasSuffix(".json") && !retained.contains(file) {
+            do {
+                try FileManager.default.removeItem(atPath: "\(directory)/\(file)")
+            } catch {
+                Log.error("Failed to prune timing data \(file): \(error)")
+            }
+        }
+    }
+
     // MARK: - Stats
 
     static func stats(

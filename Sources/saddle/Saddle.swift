@@ -11,8 +11,6 @@ struct Saddle: AsyncParsableCommand {
     )
 
     static func main() async {
-        Paths.migrateIfNeeded()
-
         let cacheDir = URL(fileURLWithPath: Paths.urlCacheDir)
         URLCache.shared = URLCache(memoryCapacity: 0, diskCapacity: 10_000_000, directory: cacheDir)
 
