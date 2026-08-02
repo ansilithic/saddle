@@ -6,10 +6,51 @@ struct Saddle: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Repo wrangler.",
         version: "3.0.0",
-        subcommands: [Health.self, Up.self, Deps.self, Stats.self, Equip.self, Unequip.self, ManifestShow.self, Info.self, Auth.self, Completions.self]
+        subcommands: [Status.self, Health.self, Up.self, Deps.self, Stats.self, Equip.self, Unequip.self, ManifestShow.self, Info.self, Auth.self, Completions.self],
+        defaultSubcommand: Status.self
     )
 
-    // MARK: - Status flags (used when no subcommand is invoked)
+    static func main() async {
+        Paths.migrateIfNeeded()
+
+        let cacheDir = URL(fileURLWithPath: Paths.urlCacheDir)
+        URLCache.shared = URLCache(memoryCapacity: 0, diskCapacity: 10_000_000, directory: cacheDir)
+
+        let args = Array(CommandLine.arguments.dropFirst())
+        let wantsHelp = args.contains("-h") || args.contains("--help")
+            || (args.first == "help" && args.count <= 1)
+        let wantsVersion = args.contains("-v") || args.contains("--version")
+
+        if wantsHelp {
+            Help.print()
+            return
+        }
+
+        if wantsVersion {
+            print(configuration.version)
+            return
+        }
+
+        do {
+            var command = try parseAsRoot()
+            if var asyncCmd = command as? any AsyncParsableCommand {
+                try await asyncCmd.run()
+            } else {
+                try command.run()
+            }
+        } catch {
+            exit(withError: error)
+        }
+    }
+}
+
+struct Status: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "status",
+        abstract: "Show local and remote repository status."
+    )
+
+    // MARK: - Filters
 
     @Flag(help: "Show all repos, including archived.")
     var all = false
@@ -69,44 +110,7 @@ struct Saddle: AsyncParsableCommand {
         let hasHook: Bool
     }
 
-    // MARK: - Entry point
-
-    static func main() async {
-        Paths.migrateIfNeeded()
-
-        let cacheDir = URL(fileURLWithPath: Paths.urlCacheDir)
-        URLCache.shared = URLCache(memoryCapacity: 0, diskCapacity: 10_000_000, directory: cacheDir)
-
-        let args = Array(CommandLine.arguments.dropFirst())
-        let wantsHelp = args.contains("-h") || args.contains("--help")
-            || (args.first == "help" && args.count <= 1)
-        let wantsVersion = args.contains("-v") || args.contains("--version")
-
-        // ANY --help anywhere prints the unified main help. No nested
-        // subcommand help pages.
-        if wantsHelp {
-            Help.print()
-            return
-        }
-
-        if wantsVersion {
-            print(configuration.version)
-            return
-        }
-
-        do {
-            var command = try parseAsRoot()
-            if var asyncCmd = command as? any AsyncParsableCommand {
-                try await asyncCmd.run()
-            } else {
-                try command.run()
-            }
-        } catch {
-            exit(withError: error)
-        }
-    }
-
-    // MARK: - Run (status logic when no subcommand)
+    // MARK: - Run
 
     func run() async {
         let spinner = ProgressSpinner()
