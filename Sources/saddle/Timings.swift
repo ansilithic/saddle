@@ -1,8 +1,8 @@
 import Foundation
 
-/// Per-repo rolling-window timing storage. One JSON file per repo under
-/// `~/Library/Application Support/com.ansilithic.saddle/timings/<owner-repo>.json`.
-/// Workers never share files, so the writes are naturally parallel-safe.
+/// Per-hook rolling-window timing storage. Each repository and lifecycle has
+/// its own JSON file, so fast health checks cannot train update/install
+/// timeouts and concurrent lifecycle work does not share a file.
 ///
 /// Stats use median + MAD (median absolute deviation) — robust to one-off
 /// slow runs (e.g., a cold container build) so the adaptive timeout doesn't
@@ -29,13 +29,13 @@ struct Timings {
 
     static var dir: String { "\(Paths.dataDir)/timings" }
 
-    static func path(for url: String) -> String {
+    static func path(for url: String, lifecycle: Lifecycle, directory: String = dir) -> String {
         let base = URLHelpers.hookBaseName(from: url)
-        return "\(dir)/\(base).json"
+        return "\(directory)/\(base)-\(lifecycle.rawValue).json"
     }
 
-    static func load(for url: String) -> Snapshot {
-        guard let data = try? FS.readFile(path(for: url)).data(using: .utf8),
+    static func load(for url: String, lifecycle: Lifecycle, directory: String = dir) -> Snapshot {
+        guard let data = try? FS.readFile(path(for: url, lifecycle: lifecycle, directory: directory)).data(using: .utf8),
               let snap = try? JSONDecoder().decode(Snapshot.self, from: data) else {
             return Snapshot()
         }
@@ -44,40 +44,54 @@ struct Timings {
 
     /// Append a successful run's duration to the rolling window. Failures
     /// shouldn't enter the stats — they'd skew the median artificially.
-    static func record(url: String, duration: Double) {
-        ensureDir()
-        var snap = load(for: url)
+    static func record(
+        url: String,
+        lifecycle: Lifecycle,
+        duration: Double,
+        directory: String = dir
+    ) {
+        ensureDir(directory)
+        var snap = load(for: url, lifecycle: lifecycle, directory: directory)
         snap.samples.append(duration)
         if snap.samples.count > windowSize {
             snap.samples.removeFirst(snap.samples.count - windowSize)
         }
         snap.lastDuration = duration
         snap.lastTimestamp = DateFormatting.iso8601.string(from: Date())
-        write(snap, for: url)
+        write(snap, for: url, lifecycle: lifecycle, directory: directory)
     }
 
-    private static func write(_ snap: Snapshot, for url: String) {
+    private static func write(
+        _ snap: Snapshot,
+        for url: String,
+        lifecycle: Lifecycle,
+        directory: String
+    ) {
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
             let data = try encoder.encode(snap)
             guard let json = String(data: data, encoding: .utf8) else { return }
-            try FS.writeFile(path(for: url), contents: json)
+            try FS.writeFile(path(for: url, lifecycle: lifecycle, directory: directory), contents: json)
         } catch {
             Log.error("Failed to write timings for \(url): \(error)")
         }
     }
 
-    private static func ensureDir() {
-        if !FS.isDirectory(dir) {
-            try? FS.createDirectory(dir)
+    private static func ensureDir(_ directory: String) {
+        if !FS.isDirectory(directory) {
+            try? FS.createDirectory(directory)
         }
     }
 
     // MARK: - Stats
 
-    static func stats(for url: String) -> Stats? {
-        let snap = load(for: url)
+    static func stats(
+        for url: String,
+        lifecycle: Lifecycle,
+        directory: String = dir
+    ) -> Stats? {
+        let snap = load(for: url, lifecycle: lifecycle, directory: directory)
         guard !snap.samples.isEmpty else { return nil }
         let m = median(snap.samples)
         let absDev = snap.samples.map { abs($0 - m) }
@@ -92,8 +106,13 @@ struct Timings {
 
     /// Return enforcement timeout in seconds, or nil if there isn't enough
     /// data yet. Generous: only kills the truly stuck.
-    static func adaptiveTimeout(for url: String) -> TimeInterval? {
-        guard let s = stats(for: url), s.count >= minSamplesForStats else { return nil }
+    static func adaptiveTimeout(
+        for url: String,
+        lifecycle: Lifecycle,
+        directory: String = dir
+    ) -> TimeInterval? {
+        guard let s = stats(for: url, lifecycle: lifecycle, directory: directory),
+              s.count >= minSamplesForStats else { return nil }
         return max(60.0, s.median + 8.0 * s.mad)
     }
 

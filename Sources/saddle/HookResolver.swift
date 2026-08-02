@@ -23,7 +23,7 @@ enum HookResult {
     }
 }
 
-enum Lifecycle {
+enum Lifecycle: String, CaseIterable {
     case install
     case update
     case uninstall
@@ -86,7 +86,7 @@ enum HookResolver {
             command = ". '\(resolution.scriptPath)' && \(fn)"
         }
 
-        let timeout = Timings.adaptiveTimeout(for: repoURL) ?? coldTimeout
+        let timeout = Timings.adaptiveTimeout(for: repoURL, lifecycle: resolution.lifecycle) ?? coldTimeout
         let started = CFAbsoluteTimeGetCurrent()
         let result = Exec.runWithGrace(
             "/bin/bash",
@@ -100,7 +100,7 @@ enum HookResolver {
         let phase = "\(resolution.lifecycle)"
 
         if result.timedOut {
-            let stats = Timings.stats(for: repoURL)
+            let stats = Timings.stats(for: repoURL, lifecycle: resolution.lifecycle)
             let median = stats?.median ?? 0
             logError("[\(hook)] \(phase) timed out at \(Int(elapsed))s (threshold \(Int(timeout))s)\n\(result.output)")
             return .timedOut(
@@ -124,7 +124,7 @@ enum HookResolver {
             logInfo("[\(hook)] \(phase) ok\n\(result.output)")
             // Only successful runs feed the timing window — failures would
             // skew the median artificially.
-            Timings.record(url: repoURL, duration: elapsed)
+            Timings.record(url: repoURL, lifecycle: resolution.lifecycle, duration: elapsed)
         } else {
             logError("[\(hook)] \(phase) exit \(result.exitCode)\n\(result.output)")
         }

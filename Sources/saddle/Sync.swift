@@ -439,7 +439,8 @@ struct Sync {
             text = "\(m)m\(s)s"
         }
 
-        if let stats = Timings.stats(for: url), stats.count >= Timings.minSamplesForStats {
+        if let stats = Timings.stats(for: url, lifecycle: .update),
+           stats.count >= Timings.minSamplesForStats {
             let m = stats.median
             if m <= 0 || seconds < m * 1.5 { return styled(text, .dim) }
             if seconds < m * 3 { return styled(text, .yellow) }

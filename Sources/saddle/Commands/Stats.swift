@@ -4,7 +4,7 @@ import Foundation
 struct Stats: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "stats",
-        abstract: "Per-repo hook duration history and adaptive timeout thresholds."
+        abstract: "Per-repo update-hook history and adaptive timeout thresholds."
     )
 
     enum SortKey: String, ExpressibleByArgument {
@@ -43,12 +43,12 @@ struct Stats: ParsableCommand {
         }
 
         var rows: [Row] = manifest.repos.map { url in
-            let s = Timings.stats(for: url)
+            let s = Timings.stats(for: url, lifecycle: .update)
             return Row(
                 url: url,
                 path: URLHelpers.pathAfterHost(from: url),
                 stats: s,
-                timeout: Timings.adaptiveTimeout(for: url)
+                timeout: Timings.adaptiveTimeout(for: url, lifecycle: .update)
             )
         }
 
